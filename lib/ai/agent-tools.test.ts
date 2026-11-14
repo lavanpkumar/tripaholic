@@ -46,6 +46,28 @@ describe("Toolbox", () => {
   });
 });
 
+describe("Show me another option", () => {
+  it("hides passed-on options and proposes the next best", async () => {
+    const first = await runAgent({ trip, kind: "lodging", autoBook: false }, "cheapest hotel", () => {}, { stepDelayMs: 0 });
+    const passed = first.final.proposal!.optionId;
+    const steps: { type: string; content: unknown }[] = [];
+    const second = await runAgent({ trip, kind: "lodging", autoBook: false, exclude: [passed] }, "cheapest hotel", (st) => void steps.push(st), { stepDelayMs: 0 });
+    expect(second.final.status).toBe("awaiting_confirmation");
+    expect(second.final.proposal!.optionId).not.toBe(passed);
+    const shown = steps.flatMap((st) => ((st.content as { options?: ProviderStay[] }).options ?? []).map((o) => o.id));
+    expect(shown).not.toContain(passed);
+    expect(steps.some((st) => String((st.content as { summary?: string }).summary).includes("passed on hidden"))).toBe(true);
+  });
+
+  it("cannot book an excluded id even if asked directly", async () => {
+    const tb0 = new Toolbox(trip, true);
+    const all = (await tb0.exec("search_lodging", {})).options as ProviderStay[];
+    const tb = new Toolbox(trip, true, new Set([all[0].id]));
+    await tb.exec("search_lodging", {});
+    expect((await tb.exec("book_lodging", { propertyId: all[0].id })).error).toMatch(/Unknown propertyId/);
+  });
+});
+
 describe("POST /api/trips/:id/bookings/confirm", () => {
   it("books exactly once under a double-click", async () => {
     const run = await createRun({ tripId: trip.id, kind: "lodging", userRequest: "cheap hotel", autoBook: false, mode: "offline" });

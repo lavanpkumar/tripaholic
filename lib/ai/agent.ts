@@ -17,6 +17,8 @@ export interface AgentContext {
   trip: Trip;
   kind: AgentKind;
   autoBook: boolean;
+  /** Option ids the traveler passed on; the agent never sees them. */
+  exclude?: string[];
 }
 
 export type Emit = (step: AgentStep) => Promise<void> | void;
@@ -91,13 +93,14 @@ function systemPrompt(ctx: AgentContext): string {
     "- If nothing matches exactly, relax the least important constraint and say so. Search again at most twice.",
     kind === "flight" ? "- If the request does not say where the traveler flies from, do not guess: reply asking for the origin city, without calling tools." : "",
     "- After booking, reply with one short confirmation sentence.",
+    ctx.exclude?.length ? "The traveler passed on your previous pick; it is hidden from search results. Recommend the next best option and say how it differs." : "",
     "Prices are USD. All data comes from a demo provider.",
   ];
   return lines.filter(Boolean).join("\n");
 }
 
 async function geminiAgent(ctx: AgentContext, request: string, step: ReturnType<typeof stepper>, deps: AgentDeps): Promise<AgentFinal> {
-  const toolbox = new Toolbox(ctx.trip, ctx.autoBook);
+  const toolbox = new Toolbox(ctx.trip, ctx.autoBook, new Set(ctx.exclude));
   const generate = deps.generate ?? ((p: GenerateContentParameters) => gemini().models.generateContent(p));
   const contents: Content[] = [{ role: "user", parts: [{ text: request }] }];
   const config = (noTools = false): GenerateContentParameters["config"] => ({
@@ -221,7 +224,7 @@ function stayRationale(best: LodgingOption, ranked: ReturnType<typeof rankStays>
 
 async function offlineAgent(ctx: AgentContext, request: string, step: ReturnType<typeof stepper>, deps: AgentDeps): Promise<AgentFinal> {
   const { trip } = ctx;
-  const toolbox = new Toolbox(trip, ctx.autoBook);
+  const toolbox = new Toolbox(trip, ctx.autoBook, new Set(ctx.exclude));
   const delay = deps.stepDelayMs ?? 450;
   const pause = () => (delay ? new Promise((r) => setTimeout(r, delay)) : Promise.resolve());
   const say = async (text: string) => {

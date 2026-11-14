@@ -14,7 +14,7 @@ import { agentRequestSchema } from "@/lib/validation";
  */
 export const POST = route<IdParams>(async (req, { params }) => {
   const trip = await requireTrip((await params).id);
-  const { kind, request, autoBook } = await readBody(req, agentRequestSchema);
+  const { kind, request, autoBook, exclude } = await readBody(req, agentRequestSchema);
   const run = await createRun({ tripId: trip.id, kind, userRequest: request, autoBook, mode: geminiConfigured() ? "gemini" : "offline" });
 
   const encoder = new TextEncoder();
@@ -35,7 +35,7 @@ export const POST = route<IdParams>(async (req, { params }) => {
       };
       send("run", { runId: run.id, mode: run.mode });
       try {
-        await runAgent({ trip, kind, autoBook }, request, emit);
+        await runAgent({ trip, kind, autoBook, exclude }, request, emit);
       } catch (err) {
         console.error("[agent] run failed", err);
         await emit({ type: "final", content: { status: "failed", message: "Something went wrong while booking. Nothing was charged; please try again." }, at: new Date().toISOString() });

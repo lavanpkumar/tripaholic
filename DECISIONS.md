@@ -69,3 +69,9 @@ One line per decision or deviation from PLAN.md. Newest blockers first.
 - Caddy does not compress the agent's SSE route and flushes immediately (`flush_interval -1`), so steps stream live.
 - Secrets live only in `/opt/tripaholic/.env` (mode 600, read by systemd); scripts read it through an `.env.local` symlink. Nothing secret is committed or shown by `/api/health`.
 - Claude Code could not create the VM, register the domain, or connect Atlas/Gemini (no account access). Those steps are scripted and listed in `docs/SUBMISSION.md`.
+
+## Phase 7 (stretch)
+- Sentient OS wrapper: dropped (see Scope). Search grounding: available since Phase 3 via `GEMINI_GROUNDING=true`.
+- Real flight sandbox adapter: not built (needs provider credentials). `PROVIDER_MODE=real` logs a warning and uses mock data.
+- `.ics` export (`GET /api/trips/:id/itinerary/ics`): events written with `TZID=<destination zone>` (IANA names; Google/Apple/Outlook resolve them), RFC 5545 escaping and 75-octet folding; AI reasons go in DESCRIPTION.
+- "Show me another option" on the Confirm card re-runs the same request with the rejected id in `exclude`. Excluded options are removed from search results before either agent sees them, so they can't be re-proposed or booked.

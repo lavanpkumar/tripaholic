@@ -45,10 +45,8 @@ export function searchLodging(q: LodgingQuery): LodgingOption[] {
     let nightly = Math.round(base * (0.45 + r.next() * 1.4) * (q.guests > 2 ? 1 + (q.guests - 2) * 0.18 : 1));
     // Make sure a budget always has a few real choices under it.
     if (q.budget && i % 3 === 0) nightly = Math.min(nightly, Math.round(q.budget * (0.7 + r.next() * 0.28)));
-    const amenities = r
-      .shuffle(AMENITIES)
-      .slice(0, r.int(3, 5))
-      .concat(isHome ? ["Kitchen", "Washer"] : []);
+    // Homes lead with what makes them homes, so cards (which show the first few) always list them.
+    const amenities = (isHome ? ["Kitchen", "Washer"] : []).concat(r.shuffle(AMENITIES).slice(0, r.int(3, 5)));
     return {
       id: `ST-${hashString(JSON.stringify(key) + i).toString(36).slice(0, 6).toUpperCase()}`,
       name,

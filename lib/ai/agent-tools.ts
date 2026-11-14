@@ -171,7 +171,13 @@ export class Toolbox {
   constructor(
     private trip: Trip,
     private autoBook: boolean,
+    /** Options the traveler already passed on: never shown to the agent again in this run. */
+    private exclude: ReadonlySet<string> = new Set(),
   ) {}
+
+  private hidden(n: number): string {
+    return n ? ` (${n} you passed on hidden)` : "";
+  }
 
   async exec(name: string, rawArgs: unknown): Promise<ToolOutcome> {
     try {
@@ -222,12 +228,13 @@ export class Toolbox {
       ["max:returnDate", q.returnDate!, addDays(endDate, 1)],
     ]);
     if (err) return this.fail(err);
-    const options = await getProviders().flights.search(q);
+    const all = await getProviders().flights.search(q);
+    const options = all.filter((o) => !this.exclude.has(o.id));
     for (const o of options) this.flights.set(o.id, { option: o, query: q });
     const prices = options.map((o) => o.price);
     return {
       response: { query: q, options: options.map(compactFlight) },
-      summary: `${options.length} options ${options[0]?.outbound.from ?? q.origin} → ${options[0]?.outbound.to ?? q.destination}, ${money(Math.min(...prices))}–${money(Math.max(...prices))}`,
+      summary: `${options.length} options ${options[0]?.outbound.from ?? q.origin} → ${options[0]?.outbound.to ?? q.destination}, ${money(Math.min(...prices))}–${money(Math.max(...prices))}${this.hidden(all.length - options.length)}`,
       options,
     };
   }
@@ -273,12 +280,13 @@ export class Toolbox {
         ["max:checkOut", q.checkOut, addDays(endDate, 1)],
       ]) ?? (q.checkOut <= q.checkIn ? "checkOut must be after checkIn" : null);
     if (err) return this.fail(err);
-    const options = await getProviders().lodging.search(q);
+    const all = await getProviders().lodging.search(q);
+    const options = all.filter((o) => !this.exclude.has(o.id));
     for (const o of options) this.stays.set(o.id, { option: o, query: q });
     const prices = options.map((o) => o.nightlyPrice);
     return {
       response: { query: q, options: options.map(compactStay) },
-      summary: `${options.length} stays in ${q.location.split(",")[0]}, ${money(Math.min(...prices))}–${money(Math.max(...prices))}/night`,
+      summary: `${options.length} stays in ${q.location.split(",")[0]}, ${money(Math.min(...prices))}–${money(Math.max(...prices))}/night${this.hidden(all.length - options.length)}`,
       options,
     };
   }
