@@ -1,2 +1,12 @@
 node_modules
+.next
+out
 dist
+*.tsbuildinfo
+next-env.d.ts
+
+# local env + local fallback datastore
+.env
+.env.local
+.env.*.local
+.data
