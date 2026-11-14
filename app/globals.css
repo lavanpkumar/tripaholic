@@ -82,3 +82,106 @@ textarea:focus-visible {
 .step-in {
   animation: step-in 0.25s ease-out both;
 }
+
+/* ---------- FullCalendar, restyled to the design ---------- */
+.itinerary-cal .fc {
+  --fc-border-color: #e8ede9;
+  --fc-page-bg-color: #fff;
+  --fc-neutral-bg-color: #fafcfa;
+  --fc-today-bg-color: transparent;
+  --fc-highlight-color: rgba(36, 115, 93, 0.1);
+  --fc-event-border-color: transparent;
+  --fc-event-text-color: var(--color-ink);
+  --fc-button-bg-color: #fff;
+  --fc-button-border-color: var(--color-line);
+  --fc-button-text-color: var(--color-ink);
+  --fc-button-hover-bg-color: var(--color-mint);
+  --fc-button-hover-border-color: var(--color-line);
+  --fc-button-active-bg-color: var(--color-mint);
+  --fc-button-active-border-color: #cfe2d6;
+  font-size: 12px;
+}
+.itinerary-cal .fc .fc-toolbar.fc-header-toolbar {
+  margin: 0;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e8ede9;
+}
+.itinerary-cal .fc .fc-toolbar-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+.itinerary-cal .fc .fc-button {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: none !important;
+  text-transform: none;
+}
+.itinerary-cal .fc .fc-button-primary:not(:disabled).fc-button-active {
+  color: var(--color-pine);
+}
+.itinerary-cal .fc .fc-button-group > .fc-button:not(:first-child) {
+  margin-left: 4px;
+}
+.itinerary-cal .fc .fc-button-group > .fc-button {
+  border-radius: 9px;
+}
+.itinerary-cal .fc-theme-standard .fc-scrollgrid {
+  border: 0;
+}
+.itinerary-cal .fc .fc-col-header-cell {
+  background: #fafcfa;
+  padding: 10px 0 8px;
+}
+.itinerary-cal .fc .fc-col-header-cell-cushion {
+  color: var(--color-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+.itinerary-cal .fc .fc-day-sat,
+.itinerary-cal .fc .fc-day-sun {
+  background: #fbfcf9;
+}
+.itinerary-cal .fc .fc-timegrid-slot {
+  height: 26px;
+}
+.itinerary-cal .fc .fc-timegrid-slot-minor {
+  border-top-style: dotted;
+}
+.itinerary-cal .fc .fc-timegrid-slot-label-cushion,
+.itinerary-cal .fc .fc-timegrid-axis-cushion {
+  color: #74827d;
+  font-size: 10px;
+}
+.itinerary-cal .fc .fc-timegrid-event {
+  border-radius: 7px;
+  border: 0;
+  border-left: 3px solid currentColor;
+  box-shadow: 0 0 0 1px #fff;
+  cursor: pointer;
+}
+.itinerary-cal .fc .fc-timegrid-event .fc-event-main {
+  color: inherit;
+  padding: 0;
+}
+.itinerary-cal .fc .fc-event.is-selected {
+  outline: 2px solid var(--color-pine);
+  outline-offset: 0;
+  z-index: 5;
+}
+.itinerary-cal .fc .fc-event-mirror {
+  opacity: 0.8;
+}
+
+.cat-sight { background: var(--color-cat-sight-bg) !important; color: var(--color-cat-sight-fg) !important; }
+.cat-activity { background: var(--color-cat-activity-bg) !important; color: var(--color-cat-activity-fg) !important; }
+.cat-food { background: var(--color-cat-food-bg) !important; color: var(--color-cat-food-fg) !important; }
+.cat-travel { background: var(--color-cat-booking-bg) !important; color: var(--color-cat-booking-fg) !important; }
+.cat-user { background: var(--color-cat-user-bg) !important; color: var(--color-cat-user-fg) !important; }
+.legend-sight { background: var(--color-cat-sight-fg); }
+.legend-activity { background: var(--color-cat-activity-fg); }
+.legend-food { background: var(--color-cat-food-fg); }
+.legend-travel { background: var(--color-cat-booking-fg); }
+.legend-user { background: var(--color-cat-user-fg); }

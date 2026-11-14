@@ -7,7 +7,8 @@ import { ScopeChip } from "@/components/trips/TripCards";
 import { formatRange, gmtLabel, tripLengthDays } from "@/lib/dates";
 import { DEMO_USER_ID } from "@/lib/env";
 import { withStatus } from "@/lib/status";
-import { getTrip } from "@/lib/store/repo";
+import { getTrip, listEvents } from "@/lib/store/repo";
+import ItineraryView from "@/components/itinerary/ItineraryView";
 
 const TABS = [
   { id: "flights", label: "Flights", icon: "/assets/flights.svg" },
@@ -74,9 +75,11 @@ export default async function TripPage({ params, searchParams }: { params: Promi
       </section>
 
       <div className="py-8">
-        <div className="rounded-2xl border border-dashed border-line px-6 py-16 text-center text-sm text-muted">
-          {tab === "itinerary" ? "The itinerary calendar arrives in Phase 2." : `The ${tab} agent arrives in Phase 4.`}
-        </div>
+        {tab === "itinerary" ? (
+          <ItineraryView trip={trip} initialEvents={await listEvents(trip.id)} />
+        ) : (
+          <div className="rounded-2xl border border-dashed border-line px-6 py-16 text-center text-sm text-muted">The {tab} agent arrives in Phase 4.</div>
+        )}
       </div>
     </Shell>
   );
