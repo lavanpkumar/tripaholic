@@ -116,14 +116,26 @@ function matches(doc: Rec, filter: Filter): boolean {
   return Object.entries(filter).every(([k, v]) => doc[k] === v);
 }
 
+/** Mongo-like ordering for the values we store: missing first, then numbers numerically, then strings. */
+function compareValues(a: unknown, b: unknown): number {
+  if (a === b) return 0;
+  if (a === undefined || a === null) return -1;
+  if (b === undefined || b === null) return 1;
+  if (typeof a === "number" && typeof b === "number") return a - b;
+  if (typeof a === "number") return -1; // Mongo sorts numbers before strings
+  if (typeof b === "number") return 1;
+  const as = String(a);
+  const bs = String(b);
+  return as < bs ? -1 : as > bs ? 1 : 0;
+}
+
 function sortDocs(docs: Rec[], sort?: Sort): Rec[] {
   if (!sort) return docs;
   const keys = Object.entries(sort);
   return [...docs].sort((a, b) => {
     for (const [k, dir] of keys) {
-      const av = String(a[k] ?? "");
-      const bv = String(b[k] ?? "");
-      if (av !== bv) return av < bv ? -dir : dir;
+      const c = compareValues(a[k], b[k]);
+      if (c !== 0) return c * dir;
     }
     return 0;
   });
