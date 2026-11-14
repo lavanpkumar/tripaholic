@@ -1,9 +1,76 @@
+import { tzOffsetMinutes } from "./dates";
 import type { Trip, TripEvent } from "./types";
 
 /**
- * iCalendar (RFC 5545) export. Event times are floating destination-local times, so they are
- * written with TZID=<destination IANA zone>, which Google, Apple, and Outlook calendars resolve.
+ * iCalendar (RFC 5545) export. Event times are floating destination-local times, written with
+ * TZID=<destination IANA zone> plus a matching VTIMEZONE (required by RFC 5545 §3.2.19, and what
+ * Outlook needs), generated from the zone's real offsets via Intl.
  */
+
+const DAY = 86_400_000;
+const MINUTE = 60_000;
+
+function fmtOffset(min: number): string {
+  const sign = min < 0 ? "-" : "+";
+  const a = Math.abs(min);
+  return `${sign}${String(Math.floor(a / 60)).padStart(2, "0")}${String(a % 60).padStart(2, "0")}`;
+}
+
+/** "Local" wall time for an instant shifted by an offset, as YYYYMMDDTHHMMSS. */
+function wallStamp(ms: number): string {
+  return new Date(ms).toISOString().replace(/[-:]/g, "").slice(0, 15);
+}
+
+export interface Transition {
+  /** UTC instant of the change */
+  at: number;
+  from: number;
+  to: number;
+}
+
+/** Offset changes (DST and others) for `tz` between two UTC instants, to the minute. */
+export function transitions(tz: string, startMs: number, endMs: number): Transition[] {
+  const out: Transition[] = [];
+  let prev = tzOffsetMinutes(tz, new Date(startMs));
+  for (let t = startMs + DAY; t <= endMs; t += DAY) {
+    const off = tzOffsetMinutes(tz, new Date(t));
+    if (off === prev) continue;
+    let lo = t - DAY;
+    let hi = t;
+    while (hi - lo > MINUTE) {
+      const mid = lo + Math.floor((hi - lo) / 2 / MINUTE) * MINUTE;
+      if (tzOffsetMinutes(tz, new Date(mid)) === prev) lo = mid;
+      else hi = mid;
+    }
+    out.push({ at: hi, from: prev, to: off });
+    prev = off;
+  }
+  return out;
+}
+
+/** VTIMEZONE covering the trip's years (plus one either side) with explicit observances. */
+export function vtimezone(tz: string, fromYmd: string, toYmd: string): string[] {
+  const start = Date.parse(`${Number(fromYmd.slice(0, 4)) - 1}-01-01T00:00:00Z`);
+  const end = Date.parse(`${Number(toYmd.slice(0, 4)) + 1}-12-31T23:59:00Z`);
+  const initial = tzOffsetMinutes(tz, new Date(start));
+  const changes = transitions(tz, start, end);
+  const standard = Math.min(initial, ...changes.map((c) => c.to));
+  const block = (from: number, to: number, dtstart: string) => [
+    `BEGIN:${to > standard ? "DAYLIGHT" : "STANDARD"}`,
+    `DTSTART:${dtstart}`,
+    `TZOFFSETFROM:${fmtOffset(from)}`,
+    `TZOFFSETTO:${fmtOffset(to)}`,
+    `END:${to > standard ? "DAYLIGHT" : "STANDARD"}`,
+  ];
+  return [
+    "BEGIN:VTIMEZONE",
+    `TZID:${tz}`,
+    ...block(initial, initial, "19700101T000000"),
+    // DTSTART of an observance is the local time it begins, in the offset in force before it.
+    ...changes.flatMap((c) => block(c.from, c.to, wallStamp(c.at + c.from * MINUTE))),
+    "END:VTIMEZONE",
+  ];
+}
 
 export function escapeText(s: string): string {
   return s.replace(/\\/g, "\\\\").replace(/\r?\n/g, "\\n").replace(/([,;])/g, "\\$1");
@@ -43,6 +110,7 @@ export function toIcs(trip: Trip, events: TripEvent[], now = new Date()): string
     "METHOD:PUBLISH",
     `X-WR-CALNAME:${escapeText(trip.title)}`,
     `X-WR-TIMEZONE:${tz}`,
+    ...vtimezone(tz, trip.startDate, trip.endDate),
   ];
   for (const e of [...events].sort((a, b) => a.start.localeCompare(b.start))) {
     const description = [e.description, e.source === "ai" && e.aiReason ? `Why: ${e.aiReason}` : undefined, e.source === "booking" ? "From a booking (demo data)." : undefined]

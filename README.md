@@ -83,7 +83,7 @@ npm run dev                    # http://localhost:3000
 | Script | |
 |---|---|
 | `npm run dev` / `npm run build` / `npm start` | Next.js dev / production build / server |
-| `npm test` | 67 unit tests (status rules, validation, post-processing, regenerate preservation, providers, agent end to end, Gemini error handling, routes, .ics export) |
+| `npm test` | 73 unit tests (status rules, validation, post-processing, regenerate preservation, providers, agent end to end, Gemini error handling, routes, .ics export) |
 | `npm run typecheck` | `tsc --noEmit` (strict) |
 | `npm run seed` | Re-creates only the seeded demo trips |
 | `npm run smoke:mongo` / `smoke:gemini` | Connectivity checks (exit 1 if not configured) |

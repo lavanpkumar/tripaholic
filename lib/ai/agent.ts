@@ -17,7 +17,7 @@ export interface AgentContext {
   trip: Trip;
   kind: AgentKind;
   autoBook: boolean;
-  /** Option ids the traveler passed on; the agent never sees them. */
+  /** Stable keys of options the traveler passed on; the agent never sees them. */
   exclude?: string[];
 }
 

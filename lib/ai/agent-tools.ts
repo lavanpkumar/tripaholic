@@ -171,9 +171,17 @@ export class Toolbox {
   constructor(
     private trip: Trip,
     private autoBook: boolean,
-    /** Options the traveler already passed on: never shown to the agent again in this run. */
+    /**
+     * Options the traveler already passed on, by stable key (same hotel / same flight across
+     * searches with different dates, guests, or filters). Never shown to the agent in this run.
+     */
     private exclude: ReadonlySet<string> = new Set(),
   ) {}
+
+  /** Matches on the stable key; ids are accepted too, for proposals saved before keys existed. */
+  private excluded(o: { id: string; key?: string }): boolean {
+    return (o.key !== undefined && this.exclude.has(o.key)) || this.exclude.has(o.id);
+  }
 
   private hidden(n: number): string {
     return n ? ` (${n} you passed on hidden)` : "";
@@ -229,7 +237,7 @@ export class Toolbox {
     ]);
     if (err) return this.fail(err);
     const all = await getProviders().flights.search(q);
-    const options = all.filter((o) => !this.exclude.has(o.id));
+    const options = all.filter((o) => !this.excluded(o));
     for (const o of options) this.flights.set(o.id, { option: o, query: q });
     const prices = options.map((o) => o.price);
     return {
@@ -281,7 +289,7 @@ export class Toolbox {
       ]) ?? (q.checkOut <= q.checkIn ? "checkOut must be after checkIn" : null);
     if (err) return this.fail(err);
     const all = await getProviders().lodging.search(q);
-    const options = all.filter((o) => !this.exclude.has(o.id));
+    const options = all.filter((o) => !this.excluded(o));
     for (const o of options) this.stays.set(o.id, { option: o, query: q });
     const prices = options.map((o) => o.nightlyPrice);
     return {

@@ -30,6 +30,13 @@ describe("mock flight provider", () => {
     expect(arr - dep).toBe((o.outbound.durationMinutes + 13 * 60) * 60_000);
   });
 
+  it("keeps flight identity (key) across party size and cabin, but not across dates", () => {
+    const keys = (q: typeof fq) => searchFlights(q).map((o) => o.key).sort();
+    expect(keys({ ...fq, passengers: 3 })).toEqual(keys(fq));
+    expect(searchFlights({ ...fq, passengers: 3 })[0].id).not.toBe(searchFlights(fq)[0].id);
+    expect(keys({ ...fq, departDate: "2027-04-02" })).not.toEqual(keys(fq));
+  });
+
   it("scales price with passengers and includes a return leg", () => {
     const one = searchFlights(fq);
     const two = searchFlights({ ...fq, passengers: 2 });
@@ -45,6 +52,14 @@ describe("mock lodging provider", () => {
     expect(a.length).toBeGreaterThanOrEqual(6);
     expect(new Set(a.map((o) => o.type))).toEqual(new Set(["hotel", "airbnb"]));
     expect(a.every((o) => o.nights === 4 && o.totalPrice === o.nightlyPrice * 4)).toBe(true);
+  });
+
+  it("returns the same properties for a place whatever the dates or guests", () => {
+    const keys = (q: typeof lq) => new Set(searchLodging(q).map((o) => o.key));
+    const a = keys(lq);
+    const b = keys({ ...lq, checkIn: "2027-06-01", checkOut: "2027-06-03", guests: 4 });
+    expect(b).toEqual(a);
+    expect([...keys({ ...lq, location: "Kyoto, Japan" })].some((k) => a.has(k))).toBe(false);
   });
 
   it("always offers choices under a stated budget", () => {

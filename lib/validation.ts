@@ -96,8 +96,8 @@ export const agentRequestSchema = z.object({
   kind: z.enum(["flight", "lodging"]),
   request: z.string().trim().min(3, "Tell the agent what you want").max(1000),
   autoBook: z.boolean().default(true),
-  /** Option ids the traveler passed on ("show me another option"); hidden from searches. */
-  exclude: z.array(z.string().max(40)).max(20).default([]),
+  /** Stable keys of options the traveler passed on ("show me another option"); hidden from searches. */
+  exclude: z.array(z.string().max(200)).max(20).default([]),
 });
 
 export const confirmSchema = z.object({

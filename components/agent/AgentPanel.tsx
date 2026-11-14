@@ -295,7 +295,7 @@ export default function AgentPanel({
               type="button"
               className={`${btn.soft} mt-2 w-full`}
               disabled={confirming || running || !lastRequest}
-              onClick={() => run(lastRequest, [...excluded, proposal.optionId])}
+              onClick={() => run(lastRequest, [...excluded, proposal.option.key ?? proposal.optionId])}
             >
               Show me another option
             </button>

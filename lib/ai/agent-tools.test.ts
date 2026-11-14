@@ -3,7 +3,7 @@ import { POST as confirm } from "@/app/api/trips/[id]/bookings/confirm/route";
 import { __resetFileStoreForTests } from "../store/collections";
 import { appendStep, createRun, createTrip, listBookings } from "../store/repo";
 import type { LodgingBookingDetails, Trip } from "../types";
-import type { LodgingOption as ProviderStay } from "../providers";
+import type { FlightOption as ProviderFlight, LodgingOption as ProviderStay } from "../providers";
 import { runAgent } from "./agent";
 import { Toolbox } from "./agent-tools";
 
@@ -47,24 +47,48 @@ describe("Toolbox", () => {
 });
 
 describe("Show me another option", () => {
+  const shownIn = (steps: { content: unknown }[]) =>
+    steps.flatMap((st) => ((st.content as { options?: { key: string }[] }).options ?? []).map((o) => o.key));
+
   it("hides passed-on options and proposes the next best", async () => {
     const first = await runAgent({ trip, kind: "lodging", autoBook: false }, "cheapest hotel", () => {}, { stepDelayMs: 0 });
-    const passed = first.final.proposal!.optionId;
+    const passed = (first.final.proposal!.option as ProviderStay).key;
     const steps: { type: string; content: unknown }[] = [];
     const second = await runAgent({ trip, kind: "lodging", autoBook: false, exclude: [passed] }, "cheapest hotel", (st) => void steps.push(st), { stepDelayMs: 0 });
     expect(second.final.status).toBe("awaiting_confirmation");
-    expect(second.final.proposal!.optionId).not.toBe(passed);
-    const shown = steps.flatMap((st) => ((st.content as { options?: ProviderStay[] }).options ?? []).map((o) => o.id));
-    expect(shown).not.toContain(passed);
+    expect((second.final.proposal!.option as ProviderStay).key).not.toBe(passed);
+    expect(shownIn(steps)).not.toContain(passed);
     expect(steps.some((st) => String((st.content as { summary?: string }).summary).includes("passed on hidden"))).toBe(true);
   });
 
-  it("cannot book an excluded id even if asked directly", async () => {
+  it("keeps a rejected hotel out when a different search returns it under a new id", async () => {
     const tb0 = new Toolbox(trip, true);
-    const all = (await tb0.exec("search_lodging", {})).options as ProviderStay[];
-    const tb = new Toolbox(trip, true, new Set([all[0].id]));
-    await tb.exec("search_lodging", {});
-    expect((await tb.exec("book_lodging", { propertyId: all[0].id })).error).toMatch(/Unknown propertyId/);
+    const rejected = ((await tb0.exec("search_lodging", { guests: 1 })).options as ProviderStay[])[0];
+    // A different query (dates and guests) returns the same property with a different option id.
+    const tbProbe = new Toolbox(trip, true);
+    const again = ((await tbProbe.exec("search_lodging", { guests: 3, checkIn: "2027-05-11", checkOut: "2027-05-14" })).options as ProviderStay[]).find(
+      (o) => o.key === rejected.key,
+    );
+    expect(again).toBeDefined();
+    expect(again!.id).not.toBe(rejected.id);
+
+    const tb = new Toolbox(trip, true, new Set([rejected.key]));
+    const out = await tb.exec("search_lodging", { guests: 3, checkIn: "2027-05-11", checkOut: "2027-05-14" });
+    expect((out.options as ProviderStay[]).map((o) => o.key)).not.toContain(rejected.key);
+    expect((await tb.exec("book_lodging", { propertyId: again!.id })).error).toMatch(/Unknown propertyId/);
+  });
+
+  it("keeps a rejected flight out when re-searched for a different party size", async () => {
+    const tb0 = new Toolbox(trip, true);
+    const rejected = ((await tb0.exec("search_flights", { origin: "JFK", passengers: 1 })).options as ProviderFlight[])[0];
+    const tbProbe = new Toolbox(trip, true);
+    const again = ((await tbProbe.exec("search_flights", { origin: "JFK", passengers: 3 })).options as ProviderFlight[]).find((o) => o.key === rejected.key);
+    expect(again).toBeDefined();
+    expect(again!.id).not.toBe(rejected.id);
+
+    const tb = new Toolbox(trip, true, new Set([rejected.key]));
+    const out = await tb.exec("search_flights", { origin: "JFK", passengers: 3 });
+    expect((out.options as ProviderFlight[]).map((o) => o.key)).not.toContain(rejected.key);
   });
 });
 
