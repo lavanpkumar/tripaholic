@@ -45,6 +45,9 @@ One line per decision or deviation from PLAN.md. Newest blockers first.
 - Gemini failures never block the itinerary: the offline planner runs and the summary carries a notice naming the cause (`GeminiError.kind`).
 - The "Ask AI to adjust this plan" box regenerates with the request as `preferences` (no chat thread).
 - The file store reloads `.data/db.json` when its mtime changes, so `npm run seed` and the dev server can share it.
+- AI events the traveler moves or edits are pinned (`pinned: true`, set automatically by PATCH): Regenerate keeps them and plans around them. They can be unpinned from the event card. (PR #4 review.)
+- Generate holds an in-process lock per trip (409 while running) and inserts the new plan before deleting the old one. The lock is per Node process, which matches the single-instance Vultr deploy. (PR #4 review.)
+- The 4-hour cap on shifting AI events lives in Phase 3's post-processing (it was first added on the Phase 4 branch). (PR #5 review.)
 
 ## Phase 4
 - Provider `book()` takes the full option rather than only its id, so a stateless provider can book exactly what was shown; the agent resolves ids against options it has seen in the same run.

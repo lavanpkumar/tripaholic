@@ -23,6 +23,11 @@ export const PATCH = route<IdParams>(async (req, { params }) => {
     throw new HttpError(409, "Booking times follow the booking. Change or cancel the booking instead.");
   if (end <= start) throw new HttpError(400, "End must be after start");
   if (!withinTrip(trip, start, end)) throw new HttpError(400, "Events must fall within the trip dates");
+  // Moving or editing an AI suggestion means the traveler wants it: pin it so Regenerate keeps it.
+  if (event.source === "ai" && patch.pinned === undefined) {
+    const changed = (Object.keys(patch) as (keyof typeof patch)[]).some((k) => patch[k] !== undefined && patch[k] !== event[k as keyof typeof event]);
+    if (changed) patch.pinned = true;
+  }
   const updated = await updateEvent(event.id, patch);
   return json({ event: updated });
 });

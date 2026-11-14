@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { overlaps } from "../events";
 import { __resetFileStoreForTests } from "../store/collections";
-import { createEvents, createTrip, listEvents } from "../store/repo";
+import { createEvents, createTrip, listEvents, updateEvent } from "../store/repo";
 import type { Trip } from "../types";
 import type { GeminiDeps } from "./gemini";
 import { generateItinerary } from "./itinerary";
@@ -60,6 +60,35 @@ describe("generateItinerary (offline planner)", () => {
     const ai = events.filter((e) => e.source === "ai");
     expect(ai.some((e) => firstAi.includes(e.id))).toBe(false);
     for (const e of ai) expect(overlaps(e, mine)).toBe(false);
+  });
+});
+
+describe("generateItinerary pinning and concurrency", () => {
+  it("keeps a pinned (moved) AI event on regenerate and plans around it", async () => {
+    const trip = await makeTrip();
+    const { events } = await generateItinerary(trip);
+    const moved = (await updateEvent(events[0].id, { start: "2027-04-03T21:00:00", end: "2027-04-03T22:00:00", pinned: true }))!;
+    const after = await generateItinerary(trip);
+    const kept = after.events.find((e) => e.id === moved.id);
+    expect(kept).toMatchObject({ start: moved.start, end: moved.end, pinned: true, source: "ai" });
+    for (const e of after.events) if (e.id !== moved.id) expect(overlaps(e, moved)).toBe(false);
+  });
+
+  it("rejects a second generate for the same trip while one is running", async () => {
+    const trip = await makeTrip();
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const slow: GeminiDeps = {
+      generate: async () => {
+        await gate;
+        return { text: JSON.stringify({ summary: "x", highlights: [], events: [{ title: "A", start: "2027-04-01T10:00", end: "2027-04-01T11:00", category: "sight", reason: "r" }] }) };
+      },
+    };
+    const first = generateItinerary(trip, { deps: slow });
+    await expect(generateItinerary(trip)).rejects.toMatchObject({ status: 409 });
+    release();
+    await expect(first).resolves.toBeTruthy();
+    await expect(generateItinerary(trip)).resolves.toBeTruthy(); // lock released
   });
 });
 
