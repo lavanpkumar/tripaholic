@@ -3,7 +3,7 @@ import { POST as confirm } from "@/app/api/trips/[id]/bookings/confirm/route";
 import { __resetFileStoreForTests } from "../store/collections";
 import { appendStep, createRun, createTrip, listBookings } from "../store/repo";
 import type { LodgingBookingDetails, Trip } from "../types";
-import type { LodgingOption as ProviderStay } from "../providers";
+import type { FlightOption as ProviderFlight, LodgingOption as ProviderStay } from "../providers";
 import { runAgent } from "./agent";
 import { Toolbox } from "./agent-tools";
 
@@ -43,6 +43,73 @@ describe("Toolbox", () => {
     expect((await tb.exec("search_flights", { origin: "JFK", departDate: "2026-01-01" })).error).toMatch(/outside this trip/);
     expect((await tb.exec("search_flights", { origin: "JFK", departDate: "2027-05-09" })).error).toBeUndefined(); // day before is fine
     expect(await listBookings(trip.id)).toHaveLength(0);
+  });
+});
+
+describe("Show me another option", () => {
+  const shownIn = (steps: { content: unknown }[]) =>
+    steps.flatMap((st) => ((st.content as { options?: { key: string }[] }).options ?? []).map((o) => o.key));
+
+  it("hides passed-on options and proposes the next best", async () => {
+    const first = await runAgent({ trip, kind: "lodging", autoBook: false }, "cheapest hotel", () => {}, { stepDelayMs: 0 });
+    const passed = (first.final.proposal!.option as ProviderStay).key;
+    const steps: { type: string; content: unknown }[] = [];
+    const second = await runAgent({ trip, kind: "lodging", autoBook: false, exclude: [passed] }, "cheapest hotel", (st) => void steps.push(st), { stepDelayMs: 0 });
+    expect(second.final.status).toBe("awaiting_confirmation");
+    expect((second.final.proposal!.option as ProviderStay).key).not.toBe(passed);
+    expect(shownIn(steps)).not.toContain(passed);
+    expect(steps.some((st) => String((st.content as { summary?: string }).summary).includes("passed on hidden"))).toBe(true);
+  });
+
+  it("keeps a rejected hotel out when a different search returns it under a new id", async () => {
+    const tb0 = new Toolbox(trip, true);
+    const rejected = ((await tb0.exec("search_lodging", { guests: 1 })).options as ProviderStay[])[0];
+    // A different query (dates and guests) returns the same property with a different option id.
+    const tbProbe = new Toolbox(trip, true);
+    const again = ((await tbProbe.exec("search_lodging", { guests: 3, checkIn: "2027-05-11", checkOut: "2027-05-14" })).options as ProviderStay[]).find(
+      (o) => o.key === rejected.key,
+    );
+    expect(again).toBeDefined();
+    expect(again!.id).not.toBe(rejected.id);
+
+    const tb = new Toolbox(trip, true, new Set([rejected.key]));
+    const out = await tb.exec("search_lodging", { guests: 3, checkIn: "2027-05-11", checkOut: "2027-05-14" });
+    expect((out.options as ProviderStay[]).map((o) => o.key)).not.toContain(rejected.key);
+    expect((await tb.exec("book_lodging", { propertyId: again!.id })).error).toMatch(/Unknown propertyId/);
+  });
+
+  it("rejecting a round trip hides that exact itinerary only, not other returns or cabins with the same outbound", async () => {
+    const sameOutbound = (a: ProviderFlight, b: ProviderFlight) => a.outbound.flightNumber === b.outbound.flightNumber && a.outbound.depart === b.outbound.depart;
+    const rejected = ((await new Toolbox(trip, true).exec("search_flights", { origin: "JFK" })).options as ProviderFlight[])[0];
+    const tb = new Toolbox(trip, true, new Set([rejected.key]));
+
+    // Same outbound, different return flight: still offered.
+    const otherReturn = ((await tb.exec("search_flights", { origin: "JFK", returnDate: "2027-05-14" })).options as ProviderFlight[]).find((o) => sameOutbound(o, rejected));
+    expect(otherReturn).toBeDefined();
+    expect(otherReturn!.inbound!.depart).not.toBe(rejected.inbound!.depart);
+
+    // Same flights, different cabin: still offered.
+    const otherCabin = ((await tb.exec("search_flights", { origin: "JFK", cabin: "business" })).options as ProviderFlight[]).find(
+      (o) => sameOutbound(o, rejected) && o.inbound?.flightNumber === rejected.inbound?.flightNumber,
+    );
+    expect(otherCabin).toBeDefined();
+
+    // The exact same itinerary from a new search (different party size, new id): excluded.
+    const again = ((await tb.exec("search_flights", { origin: "JFK", passengers: 2 })).options as ProviderFlight[]).map((o) => o.key);
+    expect(again).not.toContain(rejected.key);
+  });
+
+  it("keeps a rejected flight out when re-searched for a different party size", async () => {
+    const tb0 = new Toolbox(trip, true);
+    const rejected = ((await tb0.exec("search_flights", { origin: "JFK", passengers: 1 })).options as ProviderFlight[])[0];
+    const tbProbe = new Toolbox(trip, true);
+    const again = ((await tbProbe.exec("search_flights", { origin: "JFK", passengers: 3 })).options as ProviderFlight[]).find((o) => o.key === rejected.key);
+    expect(again).toBeDefined();
+    expect(again!.id).not.toBe(rejected.id);
+
+    const tb = new Toolbox(trip, true, new Set([rejected.key]));
+    const out = await tb.exec("search_flights", { origin: "JFK", passengers: 3 });
+    expect((out.options as ProviderFlight[]).map((o) => o.key)).not.toContain(rejected.key);
   });
 });
 

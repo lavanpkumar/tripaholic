@@ -198,6 +198,11 @@ export default function ItineraryView({
               {notice.text}
             </span>
           )}
+          {events.length > 0 && (
+            <a href={`/api/trips/${trip.id}/itinerary/ics`} download className={btn.ghost} title="Add this itinerary to Google, Apple, or Outlook Calendar">
+              Export .ics
+            </a>
+          )}
           <button type="button" className={btn.soft} disabled={generating} onClick={() => generate()}>
             <img src="/assets/sparkle-regen.svg" alt="" />
             {generating ? "Planning…" : counts.ai > 0 ? "Regenerate with AI" : "Generate with AI"}

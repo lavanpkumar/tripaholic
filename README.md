@@ -9,9 +9,9 @@ Live: `https://<your-domain>` (GoDaddy Registry domain → Vultr; see [Deploy](#
 | Page | What you can do |
 |---|---|
 | **Trips** (home) | See trips grouped as Planned, In progress, and Archived (status is derived from the dates in the destination's time zone, or set manually by archiving). **New Trip** is a required 3-step flow: location (with autocomplete), then whether you're traveling the **city**, **state**, or **country**, then title and dates. |
-| **Flights** | Tell the agent what matters ("cheapest direct flight from JFK, arriving before noon"). Watch its live log: it searches, filters, compares, explains its pick with numbers, and books. Turn off auto-book to get a **Confirm booking** card instead. |
+| **Flights** | Tell the agent what matters ("cheapest direct flight from JFK, arriving before noon"). Watch its live log: it searches, filters, compares, explains its pick with numbers, and books. Turn off auto-book to get a **Confirm booking** card instead, or ask for **another option** and the agent proposes the next best. |
 | **Lodging** | Same agent for hotels and Airbnb-style homes ("best rated hotel near the center with breakfast"). |
-| **Itinerary** | Google Calendar-style view limited to the trip dates. **Generate with AI** fills it with events planned around your flights, hotel, and your own plans, with a "Why this plan" summary and a reason on every event. Drag, resize, delete, add your own, and **Regenerate**: your events, bookings, and any AI event you moved stay put. |
+| **Itinerary** | Google Calendar-style view limited to the trip dates. **Generate with AI** fills it with events planned around your flights, hotel, and your own plans, with a "Why this plan" summary and a reason on every event. Drag, resize, delete, add your own, and **Regenerate**: your events, bookings, and any AI event you moved stay put. **Export .ics** adds it to Google, Apple, or Outlook Calendar. |
 
 ## Demo script (under 3 minutes)
 
@@ -83,7 +83,7 @@ npm run dev                    # http://localhost:3000
 | Script | |
 |---|---|
 | `npm run dev` / `npm run build` / `npm start` | Next.js dev / production build / server |
-| `npm test` | 63 unit tests (status rules, validation, post-processing, regenerate preservation, providers, agent end to end, Gemini error handling, routes) |
+| `npm test` | 73 unit tests (status rules, validation, post-processing, regenerate preservation, providers, agent end to end, Gemini error handling, routes, .ics export) |
 | `npm run typecheck` | `tsc --noEmit` (strict) |
 | `npm run seed` | Re-creates only the seeded demo trips |
 | `npm run smoke:mongo` / `smoke:gemini` | Connectivity checks (exit 1 if not configured) |

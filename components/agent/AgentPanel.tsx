@@ -68,6 +68,9 @@ export default function AgentPanel({
   const [confirming, setConfirming] = useState(false);
   const [bookings, setBookings] = useState<Booking[]>(initialBookings);
   const [error, setError] = useState<string | null>(null);
+  // For "Show me another option": the request being answered and the picks already passed on.
+  const [lastRequest, setLastRequest] = useState(initialRun?.userRequest ?? "");
+  const [excluded, setExcluded] = useState<string[]>([]);
 
   const final = useMemo(() => [...steps].reverse().find((s) => s.type === "final")?.content as AgentFinal | undefined, [steps]);
   const proposal = final?.status === "awaiting_confirmation" ? (final.proposal as Proposal | undefined) : undefined;
@@ -81,17 +84,19 @@ export default function AgentPanel({
     if (b) setBookings((list) => (list.some((x) => x.id === b.id) ? list : [...list, b]));
   };
 
-  async function run(text: string) {
+  async function run(text: string, exclude: string[] = []) {
     const req = text.trim();
     if (req.length < 3 || running) return;
     setRunning(true);
     setError(null);
     setSteps([]);
+    setLastRequest(req);
+    setExcluded(exclude);
     try {
       const res = await fetch(`/api/trips/${trip.id}/agent`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ kind, request: req, autoBook }),
+        body: JSON.stringify({ kind, request: req, autoBook, exclude }),
       });
       if (!res.ok || !res.body) {
         const body = await res.json().catch(() => ({}));
@@ -283,8 +288,16 @@ export default function AgentPanel({
               {"outbound" in proposal.option ? `${money(proposal.option.price)} total` : `${money(proposal.option.totalPrice)} for ${proposal.option.nights} nights`}
             </p>
             {proposal.rationale && <p className="mt-2 text-[12.5px] leading-[19px] text-sage">{proposal.rationale}</p>}
-            <button type="button" className={`${btn.primary} mt-4 w-full`} onClick={confirm} disabled={confirming}>
+            <button type="button" className={`${btn.primary} mt-4 w-full`} onClick={confirm} disabled={confirming || running}>
               {confirming ? "Booking…" : "Confirm booking"}
+            </button>
+            <button
+              type="button"
+              className={`${btn.soft} mt-2 w-full`}
+              disabled={confirming || running || !lastRequest}
+              onClick={() => run(lastRequest, [...excluded, proposal.option.key ?? proposal.optionId])}
+            >
+              Show me another option
             </button>
             <p className="mt-2 text-center text-[10.5px] text-muted">Demo booking · nothing is charged</p>
           </div>

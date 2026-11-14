@@ -105,27 +105,44 @@ function buildLeg(
   };
 }
 
+/**
+ * Stable identity of a whole itinerary: airline, cabin, and every leg's flight number and
+ * departure. Rejecting a round trip hides exactly that pairing, not every option that shares
+ * its outbound flight (a different return or cabin is a different option).
+ */
+export function flightKey(airline: string, cabin: string, outbound: FlightLeg, inbound?: FlightLeg): string {
+  const leg = (l: FlightLeg) => `${l.flightNumber}@${l.depart}`;
+  return [airline, cabin, leg(outbound), inbound ? leg(inbound) : "one-way"].join("|");
+}
+
 export function searchFlights(q: FlightQuery): FlightOption[] {
   const origin = resolvePlace(q.origin);
   const dest = resolvePlace(q.destination);
   const key = { o: origin.iata, d: dest.iata, dd: q.departDate, rd: q.returnDate ?? null, p: q.passengers, c: q.cabin ?? "economy" };
+  // A route on a given day has the same flights whoever searches (schedule seeds), while fares
+  // depend on the whole query (price seed). So a flight keeps its identity across searches.
+  const route = seeded({ o: origin.iata, d: dest.iata });
+  const outSchedule = seeded({ o: origin.iata, d: dest.iata, date: q.departDate });
+  const inSchedule = seeded({ o: dest.iata, d: origin.iata, date: q.returnDate ?? null });
   const r = seeded(key);
-  const km = distanceKm(origin, dest, r.int(1500, 9000));
+  const km = distanceKm(origin, dest, route.int(1500, 9000));
   const nonstopPossible = km < 13500;
   const baseMinutes = Math.round((km / 820) * 60 + 35);
   const perPerson = (60 + km * 0.085) * (q.returnDate ? 1.85 : 1) * ({ economy: 1, premium: 1.7, business: 3.2 }[q.cabin ?? "economy"]);
-  const carriers = r.shuffle(AIRLINES);
+  const carriers = route.shuffle(AIRLINES);
+  const budgetCarrier = route.pick(BUDGET);
 
   const options: FlightOption[] = SPECS.map((spec0, i) => {
     const spec: Spec = !nonstopPossible && spec0.stops === 0 ? { ...spec0, stops: 1 } : spec0;
-    const airline = spec.budget ? r.pick(BUDGET) : carriers[i % carriers.length];
-    const outbound = buildLeg(origin, dest, q.departDate, spec, airline, baseMinutes, r, [], i);
+    const airline = spec.budget ? budgetCarrier : carriers[i % carriers.length];
+    const outbound = buildLeg(origin, dest, q.departDate, spec, airline, baseMinutes, outSchedule, [], i);
     const inbound = q.returnDate
-      ? buildLeg(dest, origin, q.returnDate, { ...spec, depHour: [(spec.depHour[0] + 3) % 24, (spec.depHour[1] + 3) % 24].sort((a, b) => a - b) as [number, number] }, airline, baseMinutes, r, [], i + 3)
+      ? buildLeg(dest, origin, q.returnDate, { ...spec, depHour: [(spec.depHour[0] + 3) % 24, (spec.depHour[1] + 3) % 24].sort((a, b) => a - b) as [number, number] }, airline, baseMinutes, inSchedule, [], i + 3)
       : undefined;
     const price = Math.round(perPerson * spec.price * (0.92 + r.next() * 0.16) * q.passengers);
     return {
       id: `FL-${hashString(JSON.stringify(key) + i).toString(36).slice(0, 6).toUpperCase()}`,
+      key: flightKey(airline[0], q.cabin ?? "economy", outbound, inbound),
       airline: airline[0],
       cabin: q.cabin ?? "economy",
       price,
