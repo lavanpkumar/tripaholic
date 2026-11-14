@@ -25,8 +25,15 @@ async function call(method: string, path: string, body?: unknown): Promise<Json>
     body: body ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
-  const data = text ? JSON.parse(text) : {};
-  check(res.ok, `${method} ${path} -> ${res.status} ${data.error ?? text.slice(0, 120)}`);
+  // A proxy or crash can return an HTML error page; keep the status in the message instead of a JSON SyntaxError.
+  let data: Json | undefined;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = undefined;
+  }
+  check(res.ok, `${method} ${path} -> ${res.status} ${data?.error ?? text.replace(/\s+/g, " ").slice(0, 120)}`);
+  check(data !== undefined, `${method} ${path} -> ${res.status} but the body is not JSON: ${text.replace(/\s+/g, " ").slice(0, 120)}`);
   return data;
 }
 
