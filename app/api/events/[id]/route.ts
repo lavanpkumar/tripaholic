@@ -17,10 +17,12 @@ export const PATCH = route<IdParams>(async (req, { params }) => {
   const patch = await readBody(req, eventPatchSchema);
   const start = patch.start ?? event.start;
   const end = patch.end ?? event.end;
+  // Booking blocks can be renamed or annotated, but their times follow the booking.
+  // Forms resend unchanged times, so only a real change is rejected.
+  if (event.source === "booking" && (start !== event.start || end !== event.end))
+    throw new HttpError(409, "Booking times follow the booking. Change or cancel the booking instead.");
   if (end <= start) throw new HttpError(400, "End must be after start");
   if (!withinTrip(trip, start, end)) throw new HttpError(400, "Events must fall within the trip dates");
-  if (event.source === "booking" && (patch.start || patch.end))
-    throw new HttpError(409, "Booking times follow the booking. Change or cancel the booking instead.");
   const updated = await updateEvent(event.id, patch);
   return json({ event: updated });
 });

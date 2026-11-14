@@ -33,3 +33,8 @@ One line per decision or deviation from PLAN.md. Newest blockers first.
 - Trip length capped at 30 days to keep planner prompts and the calendar readable.
 - New trips open on the Flights tab, matching the demo flow (flights, lodging, then itinerary).
 - Accepted on purpose (PR #2 review): `lib/geo.ts` lands whole in Phase 1 (one gazetteer for place search, the mock flight provider, and the offline planner), and `lib/validation.ts` holds the Phase 3/4 input schemas too, so all API inputs live in one file. Splitting them across the stacked branches would only add merge churn.
+
+## Phase 2
+- Events are stored in floating destination time; the calendar shows the whole trip (up to 7 days, then weekly paging) plus a Day view.
+- Shrinking trip dates is rejected with a 409 naming how many events would fall outside, instead of deleting or clipping them silently (PR #3 review).
+- Booking events can be renamed and annotated, but their times only change through the booking; the API compares against stored times, so forms that resend unchanged times work (PR #3 review).
