@@ -33,3 +33,4 @@ One line per decision or deviation from PLAN.md. Newest blockers first.
 - `destination.name` stores the resolved label ("Tokyo, Japan") rather than the raw typed text, so prompts and cards are unambiguous.
 - Trip length capped at 30 days to keep planner prompts and the calendar readable.
 - New trips open on the Flights tab, matching the demo flow (flights, lodging, then itinerary).
+- Accepted on purpose (PR #2 review): `lib/geo.ts` lands whole in Phase 1 (one gazetteer for place search, the mock flight provider, and the offline planner), and `lib/validation.ts` holds the Phase 3/4 input schemas too, so all API inputs live in one file. Splitting them across the stacked branches would only add merge churn.
