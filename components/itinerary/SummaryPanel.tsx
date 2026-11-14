@@ -89,7 +89,7 @@ export default function SummaryPanel({
           <img src="/assets/send-plan.svg" alt="" />
         </button>
       </form>
-      <p className="mt-2 text-[10.5px] text-muted">Regenerating replaces AI suggestions only. Your own events and bookings stay put.</p>
+      <p className="mt-2 text-[10.5px] text-muted">Regenerating replaces AI suggestions only. Your own events, bookings, and suggestions you moved or edited stay put.</p>
     </div>
   );
 }

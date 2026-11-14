@@ -43,6 +43,16 @@ describe("PATCH /api/events/:id for booking events", () => {
   });
 });
 
+describe("PATCH /api/events/:id on AI events", () => {
+  it("pins an AI event when the traveler moves it, and allows unpinning", async () => {
+    const [ai] = await createEvents([{ tripId: trip.id, title: "Museum", start: "2027-04-02T10:00:00", end: "2027-04-02T11:00:00", source: "ai" }]);
+    expect((await patchEvent(req({ start: "2027-04-02T14:00", end: "2027-04-02T15:00" }), ctx(ai.id))).status).toBe(200);
+    expect((await getEvent(ai.id))?.pinned).toBe(true);
+    await patchEvent(req({ pinned: false }), ctx(ai.id));
+    expect((await getEvent(ai.id))?.pinned).toBe(false);
+  });
+});
+
 describe("PATCH /api/trips/:id date changes", () => {
   it("rejects shrinking the trip when events would fall outside, naming the count", async () => {
     const res = await patchTrip(req({ endDate: "2027-04-03" }), ctx(trip.id));

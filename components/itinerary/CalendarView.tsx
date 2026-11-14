@@ -39,6 +39,7 @@ function renderEvent(arg: EventContentArg) {
       <p className="text-[10px] font-medium opacity-90">{arg.timeText}</p>
       <p className="mt-0.5 text-[11.5px] font-semibold leading-[1.25]">
         {source === "ai" && <img src="/assets/sparkle.svg" alt="AI suggestion" className="mr-1 inline h-3 w-3 align-[-1px]" />}
+        {arg.event.extendedProps.pinned && <span aria-label="Pinned" className="mr-1">📌</span>}
         {source === "booking" && <span aria-label="Booking" className="mr-1">✈︎</span>}
         {arg.event.title}
       </p>
@@ -74,7 +75,7 @@ export default function CalendarView({
         end: e.end,
         editable: e.source !== "booking",
         classNames: [`cat-${eventKind(e)}`, e.id === selectedId ? "is-selected" : ""],
-        extendedProps: { source: e.source },
+        extendedProps: { source: e.source, pinned: Boolean(e.pinned) },
       })),
     [events, selectedId],
   );

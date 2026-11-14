@@ -112,7 +112,7 @@ export function buildPrompt(ctx: PlannerContext, c: DerivedConstraints): { syste
   if (c.departure) bookingLine(bookings, `Return flight departs ${c.departure.at.slice(0, 16)} local.`);
   for (const l of c.lodging)
     bookingLine(bookings, `Staying at ${l.name} (${l.type}) in ${l.neighborhood}${l.address ? `, ${l.address}` : ""}, ${l.checkIn} to ${l.checkOut}. Prefer evening plans near here.`);
-  const fixed = ctx.fixedEvents.map((e) => `- ${e.start.slice(0, 16)} to ${e.end.slice(0, 16)}: ${e.title} (${e.source === "booking" ? "booking" : "traveler's own plan"})`);
+  const fixed = ctx.fixedEvents.map((e) => `- ${e.start.slice(0, 16)} to ${e.end.slice(0, 16)}: ${e.title} (${e.source === "booking" ? "booking" : e.source === "ai" ? "a suggestion the traveler kept" : "traveler's own plan"})`);
 
   const prompt = [
     `Destination: ${d.name}${d.country && !d.name.includes(d.country) ? `, ${d.country}` : ""}`,

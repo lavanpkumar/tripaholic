@@ -76,6 +76,12 @@ export async function deleteEventsWhere(filter: Partial<TripEvent>): Promise<num
   return events().deleteMany(filter);
 }
 
+export async function deleteEventsByIds(ids: string[]): Promise<number> {
+  let n = 0;
+  for (const id of ids) n += await events().deleteMany({ id });
+  return n;
+}
+
 // ---------- itinerary summaries ----------
 
 export async function getSummary(tripId: string): Promise<ItinerarySummary | null> {
