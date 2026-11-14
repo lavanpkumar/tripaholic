@@ -1,0 +1,26 @@
+[Unit]
+Description=Tripaholic (Next.js standalone server)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tripaholic
+Group=tripaholic
+WorkingDirectory=/opt/tripaholic/app/.next/standalone
+EnvironmentFile=/opt/tripaholic/.env
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOSTNAME=127.0.0.1
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=3
+
+# Hardening: the app only needs the network and its own directory (data lives in Atlas).
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

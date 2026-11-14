@@ -1,0 +1,24 @@
+# Caddy reverse proxy for Tripaholic. setup.sh replaces __DOMAIN__ with your domain.
+# Caddy gets and renews the HTTPS certificate automatically once DNS points at this server.
+
+__DOMAIN__ {
+	# Compress everything except the agent's Server-Sent Events stream.
+	@compressible not path /api/trips/*/agent
+	encode @compressible zstd gzip
+
+	reverse_proxy 127.0.0.1:3000 {
+		# Flush immediately so agent steps reach the browser as they happen.
+		flush_interval -1
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
+
+www.__DOMAIN__ {
+	redir https://__DOMAIN__{uri} permanent
+}
