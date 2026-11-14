@@ -1,29 +1,29 @@
 # Handoff
 
-**Branch:** `cc/phase-3-ai-itinerary` (stacked on `cc/phase-2-itinerary-calendar`) · **Phase:** 3 (AI itinerary)
+**Branch:** `cc/phase-4-booking-agent` (stacked on `cc/phase-3-ai-itinerary`) · **Phase:** 4 (Providers + booking agent)
 
 ## What changed
-- `lib/ai/planner.ts`: Gemini structured-output planner (JSON schema + zod, one retry). The prompt carries destination, scope, dates, bookings (flight arrival/departure, lodging), fixed user/booking events, and optional preferences. City scope stays in one city; state/country scope builds a multi-city route with explicit travel events. Optional Search grounding via `GEMINI_GROUNDING=true`.
-- `lib/ai/postprocess.ts`: every plan is cleaned before saving. It drops events outside the trip and invalid ones, keeps nothing before landing + 90 min or after departure − 150 min, applies daily hours, shifts AI events off user/booking events and each other (dropping what no longer fits), and caps 5 per day.
-- `lib/ai/offline-planner.ts`: deterministic fallback when there is no key or Gemini fails (auth, rate limit, timeout, bad output). The UI says which planner ran and why.
-- `POST /api/trips/:id/itinerary/generate` (optional `{ preferences }`) plans first, writes the new AI events, then removes the old unpinned ones, so a failure never leaves the trip without a plan. A second generate for the same trip while one is running gets a 409. `GET /api/trips/:id/itinerary/summary`.
-- UI: Generate/Regenerate button with a planning overlay, a "Why this plan" panel (highlights, summary, mode badge, "Ask AI to adjust this plan…" box that regenerates with that request), and a per-event "Why I picked this" box.
-- `npm run seed` now pre-plans the in-progress, archived, and one planned trip. The file store reloads when another process rewrites it, so seeding no longer needs a dev-server restart.
+- `lib/providers/`: `FlightProvider` / `LodgingProvider` interfaces and deterministic mock providers (seeded by the query). Flights: 8 options with real tradeoffs (nonstops at different times, 1–2 stop fares via real hubs, a red-eye, a budget carrier, an expensive fast one), fictional airlines, and times converted across time zones. Lodging: 8 hotels and Airbnb-style homes with prices, ratings, distance, amenities, and cancellation terms.
+- `lib/ai/agent.ts`: `runAgent(ctx, request, emit)`. Gemini function calling (search/book tools, up to 8 iterations, thought signatures preserved), with an offline agent that parses the request, searches, filters, ranks, explains, and books when there is no key or Gemini fails. For long-haul trips it also checks the day before so you land on day one.
+- `lib/bookings.ts`: writes the booking, then adds `source: "booking"` blocks to the itinerary: the last 2 h before landing, the first 2 h of the return flight, and hotel check-in/check-out. Check-in moves after landing + 90 min, and check-out before leaving for the airport, whichever was booked first.
+- API: `POST /api/trips/:id/agent` streams steps over SSE and saves them to `agentRuns`; `POST /api/trips/:id/bookings/confirm` (auto-book off); `GET /api/trips/:id/bookings`; `DELETE /api/bookings/:id` (cancel, removes its blocks).
+- UI: one `AgentPanel` for the Flights and Lodging tabs, with a request box and example chips, the "Let the agent book automatically" toggle (default on), a live agent log (thoughts, tool calls with arguments, results, rationale), a Confirm card, booked cards with confirmation codes and Cancel, and the options it compared with its pick highlighted.
+- Planner fix: AI events are never shifted more than 4 h (they're dropped instead), so a morning sight doesn't become an evening one.
 
 ## How to verify
 ```
 npm run seed && npm run dev
 ```
-1. Open a 4-day city trip, Itinerary tab, add an event of your own, click **Generate with AI**: about 4 events per day, none overlapping, all within the trip dates; your event is untouched.
-2. Click an AI event (sparkle): its reason shows. The summary panel explains the plan.
-3. Drag an AI event to a new time and reload: it persisted and shows 📌 (pinned).
-4. **Regenerate with AI** (or type a request in the ask box): unpinned AI events are replaced; your own event and the pinned one stay, and the new plan goes around them.
-5. Country or state trip (e.g. seeded "South coast, Sri Lanka"): events span several places with travel blocks.
-6. `npm test` (45 tests: post-processing rules, user/pinned-event preservation on regenerate, one generate at a time per trip, Gemini path, Gemini failure fallback).
+1. Create a city trip to Tokyo a few weeks out. On the **Flights** tab, type "cheapest direct flight from JFK arriving before noon" and click **Search with AI**. Watch the log: search, a second search a day earlier, comparison, rationale, booking. A booked card appears.
+2. **Lodging** tab: "best rated hotel near the center with breakfast". It books, with check-in/out.
+3. Turn auto-book off and ask again: a Confirm card appears; confirming books it.
+4. **Itinerary** tab: flight and hotel blocks are on the calendar. **Generate with AI** plans around them (nothing before landing + 90 min, nothing after leaving for the airport).
+5. `npm test` (57 tests, including provider determinism, request parsing, the demo request end to end, the confirm gate, the Gemini loop with a stubbed client, and fallback).
 
 ## Known gaps
-- Not yet run against a real Gemini key (none in the dev environment); the Gemini path is covered by tests with a stubbed client.
-- The planner reads bookings, but the booking agent arrives in Phase 4.
+- Not yet run against a real Gemini key; the Gemini loop is covered by a stubbed-client test.
+- Flight and lodging data is mock (labeled "Demo data" in the footer and on the cards). A real provider adapter is a Phase 7 stretch.
+- The offline agent understands common phrasings (origin, cheapest/fastest, direct, arrive by/before, leave after, passengers, hotel/Airbnb, budget, rating, amenities, near X); unusual requests fall back to "best value".
 
 ## Suggested PR title
-Phase 3: AI itinerary planner with post-processing, summary panel, and offline fallback
+Phase 4: Mock providers and streaming booking agent with confirm gate

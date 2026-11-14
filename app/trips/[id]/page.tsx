@@ -7,7 +7,8 @@ import { ScopeChip } from "@/components/trips/TripCards";
 import { formatRange, gmtLabel, tripLengthDays } from "@/lib/dates";
 import { DEMO_USER_ID } from "@/lib/env";
 import { withStatus } from "@/lib/status";
-import { getSummary, getTrip, listEvents } from "@/lib/store/repo";
+import { getSummary, getTrip, latestRun, listBookings, listEvents } from "@/lib/store/repo";
+import AgentPanel from "@/components/agent/AgentPanel";
 import ItineraryView from "@/components/itinerary/ItineraryView";
 
 const TABS = [
@@ -78,7 +79,13 @@ export default async function TripPage({ params, searchParams }: { params: Promi
         {tab === "itinerary" ? (
           <ItineraryView trip={trip} initialEvents={await listEvents(trip.id)} initialSummary={await getSummary(trip.id)} />
         ) : (
-          <div className="rounded-2xl border border-dashed border-line px-6 py-16 text-center text-sm text-muted">The {tab} agent arrives in Phase 4.</div>
+          <AgentPanel
+            key={tab}
+            trip={trip}
+            kind={tab === "flights" ? "flight" : "lodging"}
+            initialBookings={(await listBookings(trip.id)).filter((b) => b.type === (tab === "flights" ? "flight" : "lodging"))}
+            initialRun={await latestRun(trip.id, tab === "flights" ? "flight" : "lodging")}
+          />
         )}
       </div>
     </Shell>
