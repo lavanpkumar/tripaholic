@@ -78,6 +78,27 @@ describe("Show me another option", () => {
     expect((await tb.exec("book_lodging", { propertyId: again!.id })).error).toMatch(/Unknown propertyId/);
   });
 
+  it("rejecting a round trip hides that exact itinerary only, not other returns or cabins with the same outbound", async () => {
+    const sameOutbound = (a: ProviderFlight, b: ProviderFlight) => a.outbound.flightNumber === b.outbound.flightNumber && a.outbound.depart === b.outbound.depart;
+    const rejected = ((await new Toolbox(trip, true).exec("search_flights", { origin: "JFK" })).options as ProviderFlight[])[0];
+    const tb = new Toolbox(trip, true, new Set([rejected.key]));
+
+    // Same outbound, different return flight: still offered.
+    const otherReturn = ((await tb.exec("search_flights", { origin: "JFK", returnDate: "2027-05-14" })).options as ProviderFlight[]).find((o) => sameOutbound(o, rejected));
+    expect(otherReturn).toBeDefined();
+    expect(otherReturn!.inbound!.depart).not.toBe(rejected.inbound!.depart);
+
+    // Same flights, different cabin: still offered.
+    const otherCabin = ((await tb.exec("search_flights", { origin: "JFK", cabin: "business" })).options as ProviderFlight[]).find(
+      (o) => sameOutbound(o, rejected) && o.inbound?.flightNumber === rejected.inbound?.flightNumber,
+    );
+    expect(otherCabin).toBeDefined();
+
+    // The exact same itinerary from a new search (different party size, new id): excluded.
+    const again = ((await tb.exec("search_flights", { origin: "JFK", passengers: 2 })).options as ProviderFlight[]).map((o) => o.key);
+    expect(again).not.toContain(rejected.key);
+  });
+
   it("keeps a rejected flight out when re-searched for a different party size", async () => {
     const tb0 = new Toolbox(trip, true);
     const rejected = ((await tb0.exec("search_flights", { origin: "JFK", passengers: 1 })).options as ProviderFlight[])[0];

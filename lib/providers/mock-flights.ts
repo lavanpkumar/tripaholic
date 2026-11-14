@@ -105,6 +105,16 @@ function buildLeg(
   };
 }
 
+/**
+ * Stable identity of a whole itinerary: airline, cabin, and every leg's flight number and
+ * departure. Rejecting a round trip hides exactly that pairing, not every option that shares
+ * its outbound flight (a different return or cabin is a different option).
+ */
+export function flightKey(airline: string, cabin: string, outbound: FlightLeg, inbound?: FlightLeg): string {
+  const leg = (l: FlightLeg) => `${l.flightNumber}@${l.depart}`;
+  return [airline, cabin, leg(outbound), inbound ? leg(inbound) : "one-way"].join("|");
+}
+
 export function searchFlights(q: FlightQuery): FlightOption[] {
   const origin = resolvePlace(q.origin);
   const dest = resolvePlace(q.destination);
@@ -132,7 +142,7 @@ export function searchFlights(q: FlightQuery): FlightOption[] {
     const price = Math.round(perPerson * spec.price * (0.92 + r.next() * 0.16) * q.passengers);
     return {
       id: `FL-${hashString(JSON.stringify(key) + i).toString(36).slice(0, 6).toUpperCase()}`,
-      key: `${airline[0]}|${outbound.flightNumber}|${outbound.depart}`,
+      key: flightKey(airline[0], q.cabin ?? "economy", outbound, inbound),
       airline: airline[0],
       cabin: q.cabin ?? "economy",
       price,

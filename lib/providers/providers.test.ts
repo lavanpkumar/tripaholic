@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { searchFlights } from "./mock-flights";
 import { searchLodging } from "./mock-lodging";
+import type { FlightQuery } from "./types";
 
 const fq = { origin: "JFK", destination: "HND", departDate: "2027-04-01", returnDate: "2027-04-05", passengers: 1 };
 const lq = { location: "Tokyo, Japan", checkIn: "2027-04-01", checkOut: "2027-04-05", guests: 2 };
@@ -30,10 +31,12 @@ describe("mock flight provider", () => {
     expect(arr - dep).toBe((o.outbound.durationMinutes + 13 * 60) * 60_000);
   });
 
-  it("keeps flight identity (key) across party size and cabin, but not across dates", () => {
-    const keys = (q: typeof fq) => searchFlights(q).map((o) => o.key).sort();
+  it("keeps itinerary identity (key) across party size, but not across cabin, return, or dates", () => {
+    const keys = (q: FlightQuery) => searchFlights(q).map((o) => o.key).sort();
     expect(keys({ ...fq, passengers: 3 })).toEqual(keys(fq));
     expect(searchFlights({ ...fq, passengers: 3 })[0].id).not.toBe(searchFlights(fq)[0].id);
+    expect(keys({ ...fq, cabin: "business" })).not.toEqual(keys(fq));
+    expect(keys({ ...fq, returnDate: "2027-04-06" })).not.toEqual(keys(fq));
     expect(keys({ ...fq, departDate: "2027-04-02" })).not.toEqual(keys(fq));
   });
 

@@ -17,7 +17,7 @@ export interface FlightQuery {
 export interface FlightOption {
   /** Unique to this search result (changes with the query). */
   id: string;
-  /** Stable identity across searches: airline + flight number + departure. */
+  /** Stable identity across searches: airline + cabin + every leg's flight number and departure. */
   key: string;
   airline: string;
   cabin: string;
