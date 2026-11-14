@@ -2,13 +2,14 @@
 
 import clsx from "clsx";
 import dynamic from "next/dynamic";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { KIND_LABEL, type EventKind } from "@/lib/events";
-import type { Trip, TripEvent } from "@/lib/types";
+import type { ItinerarySummary, Trip, TripEvent } from "@/lib/types";
 import { api } from "@/components/ui/fetcher";
 import { btn } from "@/components/ui/styles";
 import type { CalendarChange } from "./CalendarView";
 import { EventDetails, EventForm, type EventDraft } from "./EventDrawer";
+import SummaryPanel from "./SummaryPanel";
 
 const CalendarView = dynamic(() => import("./CalendarView"), {
   ssr: false,
@@ -19,8 +20,39 @@ type Panel = { kind: "none" } | { kind: "view"; id: string } | { kind: "edit"; i
 
 const LEGEND: EventKind[] = ["sight", "activity", "food", "travel", "user"];
 
-export default function ItineraryView({ trip, initialEvents }: { trip: Trip; initialEvents: TripEvent[] }) {
+const PLANNING_STEPS = ["Looking up things to do", "Fitting plans around your bookings", "Balancing each day", "Writing up why"];
+
+function PlanningOverlay({ place }: { place: string }) {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = window.setInterval(() => setI((n) => (n + 1) % PLANNING_STEPS.length), 2200);
+    return () => window.clearInterval(t);
+  }, []);
+  return (
+    <div className="absolute inset-0 z-10 flex items-start justify-center bg-white/75 pt-40 backdrop-blur-[1px]" role="status" aria-live="polite">
+      <div className="flex items-center gap-3 rounded-2xl bg-white px-5 py-4 shadow-[0_12px_40px_rgba(22,60,52,0.15)]">
+        <img src="/assets/sparkle.svg" alt="" className="h-5 w-5 animate-spin [animation-duration:2.4s]" />
+        <div>
+          <p className="text-sm font-semibold">Planning your days in {place}</p>
+          <p className="text-xs text-muted">{PLANNING_STEPS[i]}…</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function ItineraryView({
+  trip,
+  initialEvents,
+  initialSummary,
+}: {
+  trip: Trip;
+  initialEvents: TripEvent[];
+  initialSummary: ItinerarySummary | null;
+}) {
   const [events, setEvents] = useState<TripEvent[]>(initialEvents);
+  const [summary, setSummary] = useState<ItinerarySummary | null>(initialSummary);
+  const [generating, setGenerating] = useState(false);
   const [panel, setPanel] = useState<Panel>({ kind: "none" });
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -100,6 +132,24 @@ export default function ItineraryView({ trip, initialEvents }: { trip: Trip; ini
     }
   }
 
+  async function generate(preferences?: string) {
+    setGenerating(true);
+    setPanel({ kind: "none" });
+    try {
+      const res = await api<{ events: TripEvent[]; summary: ItinerarySummary; stats: { kept: number; moved: number } }>(
+        `/api/trips/${trip.id}/itinerary/generate`,
+        { method: "POST", json: preferences ? { preferences } : {} },
+      );
+      setEvents(res.events);
+      setSummary(res.summary);
+      flash("ok", `Planned ${res.stats.kept} events${res.stats.moved ? ` (${res.stats.moved} shifted to fit your schedule)` : ""}`);
+    } catch (err) {
+      flash("error", `Couldn't generate a plan: ${(err as Error).message}`);
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   function startCreate(start?: string, end?: string) {
     setFormError(null);
     const day = trip.startDate;
@@ -135,7 +185,11 @@ export default function ItineraryView({ trip, initialEvents }: { trip: Trip; ini
               {notice.text}
             </span>
           )}
-          <button type="button" className={btn.primary} onClick={() => startCreate()}>
+          <button type="button" className={btn.soft} disabled={generating} onClick={() => generate()}>
+            <img src="/assets/sparkle-regen.svg" alt="" />
+            {generating ? "Planning…" : counts.ai > 0 ? "Regenerate with AI" : "Generate with AI"}
+          </button>
+          <button type="button" className={btn.primary} disabled={generating} onClick={() => startCreate()}>
             <img src="/assets/add-event.svg" alt="" />
             Create event
           </button>
@@ -143,7 +197,8 @@ export default function ItineraryView({ trip, initialEvents }: { trip: Trip; ini
       </div>
 
       <div className="mt-5 grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="itinerary-cal min-w-0 overflow-hidden rounded-[14px] border border-line bg-white">
+        <div className="itinerary-cal relative min-w-0 overflow-hidden rounded-[14px] border border-line bg-white">
+          {generating && <PlanningOverlay place={trip.destination.name.split(",")[0]} />}
           <CalendarView
             trip={trip}
             events={events}
@@ -158,6 +213,7 @@ export default function ItineraryView({ trip, initialEvents }: { trip: Trip; ini
         </div>
 
         <aside className="space-y-4">
+          <SummaryPanel trip={trip} summary={summary} counts={counts} generating={generating} onGenerate={generate} />
           {panel.kind === "create" && (
             <EventForm key={`create-${panel.draft.start}`} trip={trip} mode="create" initial={panel.draft} onSave={save} onCancel={() => setPanel({ kind: "none" })} busy={busy} error={formError} />
           )}
@@ -172,9 +228,6 @@ export default function ItineraryView({ trip, initialEvents }: { trip: Trip; ini
               {events.length ? "Select an event to see details, edit, or delete it." : "Your calendar is empty. Click an empty slot to add your own event."}
             </div>
           )}
-          <p className="text-[11px] text-muted">
-            {counts.ai} AI suggestion{counts.ai === 1 ? "" : "s"} · {counts.user} personal event{counts.user === 1 ? "" : "s"}
-          </p>
         </aside>
       </div>
 

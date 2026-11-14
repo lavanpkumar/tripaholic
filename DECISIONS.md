@@ -32,3 +32,10 @@ One line per decision or deviation from PLAN.md. Newest blockers first.
 - `destination.name` stores the resolved label ("Tokyo, Japan") rather than the raw typed text, so prompts and cards are unambiguous.
 - Trip length capped at 30 days to keep planner prompts and the calendar readable.
 - New trips open on the Flights tab, matching the demo flow (flights, lodging, then itinerary).
+
+## Phase 3
+- Planner output includes 2-3 `highlights` (title + body) beside the free-text `summary`, so the "Why this plan" panel matches the original design.
+- Post-processing drops (rather than truncates) events outside the trip or flight window, and shifts AI events forward past conflicts within the same day; anything that no longer fits before 23:00 is dropped. Buffers: 90 min after landing, 150 min before departure.
+- Gemini failures never block the itinerary: the offline planner runs and the summary carries a notice naming the cause (`GeminiError.kind`).
+- The "Ask AI to adjust this plan" box regenerates with the request as `preferences` (no chat thread).
+- The file store reloads `.data/db.json` when its mtime changes, so `npm run seed` and the dev server can share it.
