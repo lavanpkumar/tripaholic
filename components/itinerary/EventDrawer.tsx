@@ -24,12 +24,14 @@ export function EventDetails({
   event,
   onEdit,
   onDelete,
+  onUnpin,
   busy,
 }: {
   trip: Trip;
   event: TripEvent;
   onEdit: () => void;
   onDelete: () => void;
+  onUnpin: () => void;
   busy: boolean;
 }) {
   const kind = eventKind(event);
@@ -59,6 +61,14 @@ export function EventDetails({
           </p>
           <p className="mt-1 text-[12.5px] leading-5 text-sage">{event.aiReason}</p>
         </div>
+      )}
+      {event.source === "ai" && event.pinned && (
+        <p className="mt-3 flex items-center justify-between gap-2 rounded-lg bg-sand px-3 py-2 text-[11.5px] text-gold">
+          <span>📌 Pinned: you changed this, so Regenerate keeps it.</span>
+          <button type="button" className="font-semibold underline-offset-2 hover:underline" onClick={onUnpin} disabled={busy}>
+            Unpin
+          </button>
+        </p>
       )}
       <div className="mt-4 flex gap-2.5">
         <button type="button" className={clsx(btn.smallSoft, "rounded-[9px]")} onClick={onEdit} disabled={busy}>

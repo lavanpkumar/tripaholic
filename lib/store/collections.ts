@@ -87,14 +87,25 @@ export function mongoColl<T extends Doc>(name: CollName): Coll<T> {
 type FileData = Record<CollName, Rec[]>;
 const DATA_DIR = path.join(process.cwd(), ".data");
 const DATA_FILE = path.join(DATA_DIR, "db.json");
-const g = globalThis as unknown as { __fileDb?: FileData; __fileDbNoDisk?: boolean };
+const g = globalThis as unknown as { __fileDb?: FileData; __fileDbNoDisk?: boolean; __fileDbMtime?: number };
+
+function diskMtime(): number | undefined {
+  try {
+    return fs.statSync(DATA_FILE).mtimeMs;
+  } catch {
+    return undefined;
+  }
+}
 
 function emptyData(): FileData {
   return { trips: [], events: [], itinerarySummaries: [], bookings: [], agentRuns: [], meta: [] };
 }
 
 function load(): FileData {
+  // Reload when another process (e.g. `npm run seed`) rewrote the file since we last read or wrote it.
+  if (g.__fileDb && !g.__fileDbNoDisk && diskMtime() !== g.__fileDbMtime) g.__fileDb = undefined;
   if (!g.__fileDb) {
+    g.__fileDbMtime = diskMtime();
     try {
       g.__fileDb = { ...emptyData(), ...JSON.parse(fs.readFileSync(DATA_FILE, "utf8")) } as FileData;
     } catch {
@@ -110,6 +121,7 @@ function save(): void {
   const tmp = `${DATA_FILE}.${process.pid}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(load(), null, 1));
   fs.renameSync(tmp, DATA_FILE);
+  g.__fileDbMtime = diskMtime();
 }
 
 function matches(doc: Rec, filter: Filter): boolean {

@@ -1,4 +1,5 @@
 import "./_env";
+import { generateItinerary } from "../lib/ai/itinerary";
 import { closeDb } from "../lib/db";
 import { addDays, todayIn } from "../lib/dates";
 import { DEMO_USER_ID } from "../lib/env";
@@ -20,6 +21,8 @@ interface SeedTrip {
   startIn: number;
   days: number;
   archived?: boolean;
+  /** Pre-build an itinerary so the trip page looks lived-in. */
+  plan?: boolean;
 }
 
 const SEEDS: SeedTrip[] = [
@@ -29,6 +32,7 @@ const SEEDS: SeedTrip[] = [
     destination: { name: "Bali, Indonesia", scope: "state", timezone: "Asia/Makassar", lat: -8.34, lng: 115.09, country: "Indonesia" },
     startIn: 61,
     days: 8,
+    plan: true,
   },
   {
     id: "seed-palawan",
@@ -43,6 +47,7 @@ const SEEDS: SeedTrip[] = [
     destination: { name: "Sri Lanka", scope: "country", timezone: "Asia/Colombo", lat: 7.87, lng: 80.77, country: "Sri Lanka" },
     startIn: -2,
     days: 7,
+    plan: true,
   },
   {
     id: "seed-langkawi",
@@ -50,6 +55,7 @@ const SEEDS: SeedTrip[] = [
     destination: { name: "Langkawi, Malaysia", scope: "city", timezone: "Asia/Kuala_Lumpur", lat: 6.35, lng: 99.8, country: "Malaysia" },
     startIn: -96,
     days: 5,
+    plan: true,
   },
 ];
 
@@ -58,17 +64,20 @@ export async function seed(): Promise<Trip[]> {
   for (const s of SEEDS) {
     await deleteTrip(s.id);
     const startDate = addDays(todayIn(s.destination.timezone), s.startIn);
-    created.push(
-      await createTrip({
-        id: s.id,
-        userId: DEMO_USER_ID,
-        title: s.title,
-        destination: s.destination,
-        startDate,
-        endDate: addDays(startDate, s.days - 1),
-        archived: Boolean(s.archived),
-      }),
-    );
+    const trip = await createTrip({
+      id: s.id,
+      userId: DEMO_USER_ID,
+      title: s.title,
+      destination: s.destination,
+      startDate,
+      endDate: addDays(startDate, s.days - 1),
+      archived: Boolean(s.archived),
+    });
+    if (s.plan) {
+      const { plan } = await generateItinerary(trip);
+      console.log(`  planned ${plan.stats.kept} events for ${trip.title} (${plan.mode})`);
+    }
+    created.push(trip);
   }
   return created;
 }

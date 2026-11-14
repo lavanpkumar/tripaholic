@@ -38,3 +38,13 @@ One line per decision or deviation from PLAN.md. Newest blockers first.
 - Events are stored in floating destination time; the calendar shows the whole trip (up to 7 days, then weekly paging) plus a Day view.
 - Shrinking trip dates is rejected with a 409 naming how many events would fall outside, instead of deleting or clipping them silently (PR #3 review).
 - Booking events can be renamed and annotated, but their times only change through the booking; the API compares against stored times, so forms that resend unchanged times work (PR #3 review).
+
+## Phase 3
+- Planner output includes 2-3 `highlights` (title + body) beside the free-text `summary`, so the "Why this plan" panel matches the original design.
+- Post-processing drops (rather than truncates) events outside the trip or flight window, and shifts AI events forward past conflicts within the same day; anything that no longer fits before 23:00 is dropped. Buffers: 90 min after landing, 150 min before departure.
+- Gemini failures never block the itinerary: the offline planner runs and the summary carries a notice naming the cause (`GeminiError.kind`).
+- The "Ask AI to adjust this plan" box regenerates with the request as `preferences` (no chat thread).
+- The file store reloads `.data/db.json` when its mtime changes, so `npm run seed` and the dev server can share it.
+- AI events the traveler moves or edits are pinned (`pinned: true`, set automatically by PATCH): Regenerate keeps them and plans around them. They can be unpinned from the event card. (PR #4 review.)
+- Generate holds an in-process lock per trip (409 while running) and inserts the new plan before deleting the old one. The lock is per Node process, which matches the single-instance Vultr deploy. (PR #4 review.)
+- The 4-hour cap on shifting AI events lives in Phase 3's post-processing (it was first added on the Phase 4 branch). (PR #5 review.)

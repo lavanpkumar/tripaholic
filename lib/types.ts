@@ -51,6 +51,8 @@ export interface TripEvent {
   category?: EventCategory;
   source: EventSource;
   aiReason?: string;
+  /** AI event the traveler moved or edited: kept on regenerate and treated as fixed. */
+  pinned?: boolean;
   bookingId?: string;
   createdAt: string;
   updatedAt: string;
