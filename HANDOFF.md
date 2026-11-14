@@ -1,30 +1,26 @@
 # Handoff
 
-**Branch:** `cc/phase-0-setup` · **Phase:** 0 (Setup)
+**Branch:** `cc/phase-1-trips-hub` (stacked on `cc/phase-0-setup`) · **Phase:** 1 (Trips hub)
 
 ## What changed
-- Replaced the static Vite prototype with a Next.js 16 + TypeScript + Tailwind v4 app (the prototype's design assets in `public/assets` are kept and reused).
-- `lib/db.ts` cached MongoDB client with index creation; `lib/store/*` repository layer with a MongoDB backend and a local JSON-file fallback.
-- `lib/ai/gemini.ts` Gemini client plus a structured-output helper (JSON schema in, zod-validated object out, one retry on invalid output). Typed errors; 429/5xx backoff; grounding fallback only when the search tool is unsupported, and it is logged. Unit tests in `lib/ai/gemini.test.ts`.
-- Scripts: `npm run smoke:mongo`, `npm run smoke:gemini`, `npm run seed` (demo user with planned, in-progress, and archived trips).
-- `DECISIONS.md`, `.env.example`, README with setup and dev workflow.
+- Trip CRUD API (`/api/trips`, `/api/trips/:id`) with zod validation and consistent `{ error }` responses; status is derived (planned / in progress / archived) in the destination time zone.
+- Home page with Planned, In-progress, and Archived columns in the original design (date-chip cards, live progress card, archived card), plus empty and load-error states.
+- New Trip dialog as a required 3-step flow: location with autocomplete (Open-Meteo geocoding + built-in states/countries), then City / State / Country, then title (auto-suggested) and dates. Next is blocked until each step is valid.
+- Trip page `/trips/:id` with header (scope and status chips, local GMT offset), Archive/Unarchive/Delete, and Flights / Lodging / Itinerary icon tabs (stub content).
+- `lib/geo.ts` gazetteer (airports, countries/states with multi-city routes) used later by the mock provider and offline planner.
 
 ## How to verify
 ```
-npm install
-cp .env.example .env.local   # fill MONGODB_URI and GEMINI_API_KEY
-npm run smoke:mongo          # expect "Mongo OK"
-npm run smoke:gemini         # expect "Text call OK" and "Structured output OK"
-npm run seed
-npm run dev                  # http://localhost:3000 shows which backends are active
-npm run typecheck && npm test
+npm run seed && npm run dev
 ```
-Without keys, the app runs on the local file store, and the smoke scripts print "... is not set" and **exit 1** (a CI job without keys will fail them on purpose).
+1. Home shows 2 planned, 1 in-progress, 1 archived seeded trip.
+2. New Trip: Next is disabled with an empty location; type "Tokyo", pick "Tokyo, Japan", Next; Next is disabled until City/State/Country is chosen; title is pre-filled; create; you land on the trip page.
+3. Create trips with past, current, and future dates: each lands in the right column. Archive a planned trip: it moves to Archived.
+4. `npm run typecheck && npm test`
 
 ## Known gaps
-- Smoke tests not yet run against real Atlas/Gemini (no keys in the dev environment).
-- Home page is a placeholder until Phase 1.
-- `deploy/` (Phase 6) and the offline planner/agent (Phases 3-4) are not in this branch; `DECISIONS.md` marks them as planned.
+- Tab content is stubbed until Phases 2 and 4.
+- Changing trip dates after creation is API-only (no UI yet).
 
 ## Suggested PR title
-Phase 0: Next.js scaffold, Mongo + Gemini helpers, seed and smoke tests
+Phase 1: Trips hub with 3-step New Trip flow and derived trip status
