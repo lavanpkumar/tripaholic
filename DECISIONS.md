@@ -45,3 +45,12 @@ One line per decision or deviation from PLAN.md. Newest blockers first.
 - Gemini failures never block the itinerary: the offline planner runs and the summary carries a notice naming the cause (`GeminiError.kind`).
 - The "Ask AI to adjust this plan" box regenerates with the request as `preferences` (no chat thread).
 - The file store reloads `.data/db.json` when its mtime changes, so `npm run seed` and the dev server can share it.
+
+## Phase 4
+- Provider `book()` takes the full option rather than only its id, so a stateless provider can book exactly what was shown; the agent resolves ids against options it has seen in the same run.
+- Each agent run gets only the two tools for its kind (`search_flights` + `book_flight`, or `search_lodging` + `book_lodging`), so a flight request can never book a hotel.
+- Airlines and properties are fictional names; photos reuse the design's three sample images. Everything is labeled demo data.
+- "Arrive before noon" means on the trip's first day. For long-haul routes the agent also searches the day before, so travelers land on day one.
+- Flight blocks on the calendar show the 2 h before landing and the first 2 h of the return flight, not the whole flight. Hotel check-in/out are moved around flights (landing + 90 min, airport − 150 min).
+- Multiple bookings per trip are allowed; each can be cancelled from its tab (`DELETE /api/bookings/:id`), which also removes its calendar blocks.
+- SSE over a POST `fetch` (not `EventSource`, which cannot POST). If the browser disconnects, the run still finishes and its log is saved; the tab shows the latest run on reload.
