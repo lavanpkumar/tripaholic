@@ -30,6 +30,8 @@ systemctl restart tripaholic
 for i in $(seq 1 30); do
   if curl -fsS http://127.0.0.1:3000/api/health >/tmp/tripaholic-health.json 2>/dev/null; then
     echo "==> Healthy: $(cat /tmp/tripaholic-health.json)"
+    grep -q '"store":"file"' /tmp/tripaholic-health.json && echo "   note: running on the local file store (no MONGODB_URI)"
+    grep -q '"gemini":"offline"' /tmp/tripaholic-health.json && echo "   note: running the offline planner/agent (no GEMINI_API_KEY)"
     exit 0
   fi
   sleep 1

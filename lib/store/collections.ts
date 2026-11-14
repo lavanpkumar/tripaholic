@@ -85,7 +85,8 @@ export function mongoColl<T extends Doc>(name: CollName): Coll<T> {
 // ---------- JSON file backend ----------
 
 type FileData = Record<CollName, Rec[]>;
-const DATA_DIR = path.join(process.cwd(), ".data");
+// DATA_DIR keeps the file store outside the build output on a server (builds wipe .next/).
+const DATA_DIR = process.env.DATA_DIR?.trim() || path.join(process.cwd(), ".data");
 const DATA_FILE = path.join(DATA_DIR, "db.json");
 const g = globalThis as unknown as { __fileDb?: FileData; __fileDbNoDisk?: boolean; __fileDbMtime?: number };
 
