@@ -25,6 +25,8 @@ function argText(args: Record<string, unknown>): string {
 }
 
 function Row({ step, index }: { step: AgentStep; index: number }) {
+  // Step content is stored untyped (AgentStep.content: unknown); its shape is fixed by step.type,
+  // as written in lib/ai/agent.ts, so each branch narrows it to that shape.
   const c = step.content as Record<string, unknown>;
   if (step.type === "thought") {
     return (

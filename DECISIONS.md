@@ -57,3 +57,5 @@ One line per decision or deviation from PLAN.md. Newest blockers first.
 - Flight blocks on the calendar show the 2 h before landing and the first 2 h of the return flight, not the whole flight. Hotel check-in/out are moved around flights (landing + 90 min, airport − 150 min).
 - Multiple bookings per trip are allowed; each can be cancelled from its tab (`DELETE /api/bookings/:id`), which also removes its calendar blocks.
 - SSE over a POST `fetch` (not `EventSource`, which cannot POST). If the browser disconnects, the run still finishes and its log is saved; the tab shows the latest run on reload.
+- Each option the agent sees is stored with the query that produced it, so bookings use that search's dates, guests, and passengers (prices always match). Model-supplied dates are checked (YYYY-MM-DD, within the trip, allowing a day early for flights/check-in) and errors go back to the model as tool errors. (PR #5 review.)
+- `POST /bookings/confirm` takes a per-run lock and re-reads the run inside it, so a double-click or retry books exactly once (409 for the other). (PR #5 review.)

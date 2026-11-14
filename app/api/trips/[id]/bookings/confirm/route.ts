@@ -3,13 +3,28 @@ import type { Proposal } from "@/lib/ai/agent-tools";
 import { bookFlight, bookLodging, defaultStay } from "@/lib/bookings";
 import type { FlightOption, LodgingOption } from "@/lib/providers";
 import { appendStep, getRun } from "@/lib/store/repo";
-import type { AgentFinal, AgentStep } from "@/lib/types";
+import type { AgentFinal, AgentStep, Trip } from "@/lib/types";
 import { confirmSchema } from "@/lib/validation";
+
+/** Runs being confirmed right now: a double-click or retried POST must not book twice. */
+const g = globalThis as unknown as { __confirming?: Set<string> };
+const confirming = (g.__confirming ??= new Set<string>());
 
 /** Books the option the agent proposed when auto-book was off (the "Confirm booking" card). */
 export const POST = route<IdParams>(async (req, { params }) => {
   const trip = await requireTrip((await params).id);
   const { runId, optionId } = await readBody(req, confirmSchema);
+  if (confirming.has(runId)) throw new HttpError(409, "This booking is already being confirmed");
+  confirming.add(runId);
+  try {
+    return await confirmRun(trip, runId, optionId);
+  } finally {
+    confirming.delete(runId);
+  }
+});
+
+async function confirmRun(trip: Trip, runId: string, optionId: string): Promise<Response> {
+  // Re-read inside the lock, so a confirm that just finished is seen as booked.
   const run = await getRun(runId);
   if (!run || run.tripId !== trip.id) throw new HttpError(404, "Agent run not found");
 
@@ -33,4 +48,4 @@ export const POST = route<IdParams>(async (req, { params }) => {
   ];
   for (const s of steps) await appendStep(run.id, s);
   return json({ booking, steps }, 201);
-});
+}

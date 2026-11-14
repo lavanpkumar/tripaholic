@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { bookFlight, bookLodging, defaultStay } from "../bookings";
-import { hhmm } from "../dates";
+import { addDays, hhmm, isYmd } from "../dates";
 import { findAirport, findRegion, nearestAirport } from "../geo";
 import { getProviders, type FlightOption, type FlightQuery, type LodgingOption, type LodgingQuery } from "../providers";
 import type { AgentKind, Booking, Trip } from "../types";
@@ -164,10 +164,9 @@ export function toolDeclarations(kind: AgentKind) {
 }
 
 export class Toolbox {
-  private flights = new Map<string, FlightOption>();
-  private stays = new Map<string, LodgingOption>();
-  private lastFlightQuery?: FlightQuery;
-  private lastStayQuery?: LodgingQuery;
+  /** Every option seen in this run, with the query that produced it. */
+  private flights = new Map<string, { option: FlightOption; query: FlightQuery }>();
+  private stays = new Map<string, { option: LodgingOption; query: LodgingQuery }>();
 
   constructor(
     private trip: Trip,
@@ -198,18 +197,33 @@ export class Toolbox {
     return { response: { error }, summary: `Error: ${error}`, error };
   }
 
+  /** Model-supplied dates must be real and near the trip; returns an error message for the model, or null. */
+  private dateError(fields: Record<string, string | undefined>, rules: [string, string, string][]): string | null {
+    for (const [k, v] of Object.entries(fields)) if (v !== undefined && !isYmd(v)) return `${k} must be a date as YYYY-MM-DD (got "${v}")`;
+    for (const [label, value, bound] of rules) if (value && bound && (label.startsWith("min") ? value < bound : value > bound))
+      return `${label.slice(4)} (${value}) is outside this trip (${this.trip.startDate} to ${this.trip.endDate}). Pick dates that fit the trip.`;
+    return null;
+  }
+
   async searchFlights(a: z.infer<typeof searchFlightsArgs>): Promise<ToolOutcome> {
+    const { startDate, endDate } = this.trip;
     const q: FlightQuery = {
       origin: a.origin,
       destination: a.destination ?? tripAirport(this.trip).code,
-      departDate: a.departDate ?? this.trip.startDate,
-      returnDate: a.returnDate ?? this.trip.endDate,
+      departDate: a.departDate ?? startDate,
+      returnDate: a.returnDate ?? endDate,
       passengers: a.passengers ?? 1,
       cabin: a.cabin,
     };
+    const err = this.dateError({ departDate: a.departDate, returnDate: a.returnDate }, [
+      ["min:departDate", q.departDate, addDays(startDate, -2)],
+      ["max:departDate", q.departDate, endDate],
+      ["min:returnDate", q.returnDate!, q.departDate],
+      ["max:returnDate", q.returnDate!, addDays(endDate, 1)],
+    ]);
+    if (err) return this.fail(err);
     const options = await getProviders().flights.search(q);
-    for (const o of options) this.flights.set(o.id, o);
-    this.lastFlightQuery = q;
+    for (const o of options) this.flights.set(o.id, { option: o, query: q });
     const prices = options.map((o) => o.price);
     return {
       response: { query: q, options: options.map(compactFlight) },
@@ -219,18 +233,20 @@ export class Toolbox {
   }
 
   async bookFlight(a: z.infer<typeof bookFlightArgs>): Promise<ToolOutcome> {
-    const option = this.flights.get(a.optionId);
-    if (!option) return this.fail(`Unknown optionId ${a.optionId}. Use an id from search_flights.`);
+    const seen = this.flights.get(a.optionId);
+    if (!seen) return this.fail(`Unknown optionId ${a.optionId}. Use an id from search_flights.`);
+    // Passengers come from the search that produced this option, so price and booking match.
+    const { option, query } = seen;
     const rationale = a.rationale ?? "";
     if (!this.autoBook) {
       return {
         response: { status: "awaiting_confirmation", optionId: option.id },
         summary: `Proposed ${option.airline} ${option.outbound.flightNumber} for ${money(option.price)}; waiting for your confirmation`,
         stop: "awaiting_confirmation",
-        proposal: { optionId: option.id, option, rationale, passengers: this.lastFlightQuery?.passengers ?? 1 },
+        proposal: { optionId: option.id, option, rationale, passengers: query.passengers },
       };
     }
-    const booking = await bookFlight(this.trip, option, this.lastFlightQuery?.passengers ?? 1, "agent", rationale);
+    const booking = await bookFlight(this.trip, option, query.passengers, "agent", rationale);
     return {
       response: { status: "confirmed", confirmationCode: booking.confirmationCode, priceTotalUSD: booking.priceTotal },
       summary: `Booked ${option.airline} ${option.outbound.flightNumber}, lands ${hhmm(option.outbound.arrive)} · confirmation ${booking.confirmationCode}`,
@@ -240,6 +256,7 @@ export class Toolbox {
   }
 
   async searchLodging(a: z.infer<typeof searchLodgingArgs>): Promise<ToolOutcome> {
+    const { startDate, endDate } = this.trip;
     const stay = defaultStay(this.trip, a.guests ?? 1);
     const q: LodgingQuery = {
       location: a.location ?? this.trip.destination.name,
@@ -249,9 +266,15 @@ export class Toolbox {
       budget: a.budget,
       type: a.type,
     };
+    const err =
+      this.dateError({ checkIn: a.checkIn, checkOut: a.checkOut }, [
+        ["min:checkIn", q.checkIn, addDays(startDate, -1)],
+        ["max:checkIn", q.checkIn, endDate],
+        ["max:checkOut", q.checkOut, addDays(endDate, 1)],
+      ]) ?? (q.checkOut <= q.checkIn ? "checkOut must be after checkIn" : null);
+    if (err) return this.fail(err);
     const options = await getProviders().lodging.search(q);
-    for (const o of options) this.stays.set(o.id, o);
-    this.lastStayQuery = q;
+    for (const o of options) this.stays.set(o.id, { option: o, query: q });
     const prices = options.map((o) => o.nightlyPrice);
     return {
       response: { query: q, options: options.map(compactStay) },
@@ -261,24 +284,21 @@ export class Toolbox {
   }
 
   async bookLodging(a: z.infer<typeof bookLodgingArgs>): Promise<ToolOutcome> {
-    const option = this.stays.get(a.propertyId);
-    if (!option || !this.lastStayQuery) return this.fail(`Unknown propertyId ${a.propertyId}. Use an id from search_lodging.`);
+    const seen = this.stays.get(a.propertyId);
+    if (!seen) return this.fail(`Unknown propertyId ${a.propertyId}. Use an id from search_lodging.`);
+    // Dates and guests come from the search that returned this property, so price and stay match.
+    const { option, query } = seen;
+    const stay = { checkIn: query.checkIn, checkOut: query.checkOut, guests: query.guests };
     const rationale = a.rationale ?? "";
     if (!this.autoBook) {
       return {
         response: { status: "awaiting_confirmation", propertyId: option.id },
         summary: `Proposed ${option.name} for ${money(option.totalPrice)}; waiting for your confirmation`,
         stop: "awaiting_confirmation",
-        proposal: {
-          optionId: option.id,
-          option,
-          rationale,
-          stay: { checkIn: this.lastStayQuery.checkIn, checkOut: this.lastStayQuery.checkOut, guests: this.lastStayQuery.guests },
-        },
+        proposal: { optionId: option.id, option, rationale, stay },
       };
     }
-    const q = this.lastStayQuery;
-    const booking = await bookLodging(this.trip, option, { checkIn: q.checkIn, checkOut: q.checkOut, guests: q.guests }, "agent", rationale);
+    const booking = await bookLodging(this.trip, option, stay, "agent", rationale);
     return {
       response: { status: "confirmed", confirmationCode: booking.confirmationCode, totalUSD: booking.priceTotal },
       summary: `Booked ${option.name}, ${option.nights} night${option.nights === 1 ? "" : "s"} · confirmation ${booking.confirmationCode}`,
