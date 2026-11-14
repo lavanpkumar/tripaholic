@@ -11,7 +11,8 @@
     "test": "vitest run",
     "seed": "tsx scripts/seed.ts",
     "smoke:mongo": "tsx scripts/smoke-mongo.ts",
-    "smoke:gemini": "tsx scripts/smoke-gemini.ts"
+    "smoke:gemini": "tsx scripts/smoke-gemini.ts",
+    "demo:check": "tsx scripts/demo-check.ts"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.22",

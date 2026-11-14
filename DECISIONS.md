@@ -54,3 +54,7 @@ One line per decision or deviation from PLAN.md. Newest blockers first.
 - Flight blocks on the calendar show the 2 h before landing and the first 2 h of the return flight, not the whole flight. Hotel check-in/out are moved around flights (landing + 90 min, airport − 150 min).
 - Multiple bookings per trip are allowed; each can be cancelled from its tab (`DELETE /api/bookings/:id`), which also removes its calendar blocks.
 - SSE over a POST `fetch` (not `EventSource`, which cannot POST). If the browser disconnects, the run still finishes and its log is saved; the tab shows the latest run on reload.
+
+## Phase 5
+- The Phase 5 acceptance test ("run the demo flow three times without errors") is automated as `npm run demo:check -- <baseUrl> --runs 3`, so it can be rerun on the Vultr deployment and with a Gemini key. Result in this environment (offline mode): PASS, 3 runs, ~9 s each.
+- After a booking lands on top of an existing AI plan, the itinerary offers a one-click replan instead of moving AI events automatically, so nothing changes without the user asking.
