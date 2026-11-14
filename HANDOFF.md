@@ -1,26 +1,25 @@
 # Handoff
 
-**Branch:** `cc/phase-1-trips-hub` (stacked on `cc/phase-0-setup`) · **Phase:** 1 (Trips hub)
+**Branch:** `cc/phase-2-itinerary-calendar` (stacked on `cc/phase-1-trips-hub`) · **Phase:** 2 (Itinerary, no AI)
 
 ## What changed
-- Trip CRUD API (`/api/trips`, `/api/trips/:id`) with zod validation and consistent `{ error }` responses; status is derived (planned / in progress / archived) in the destination time zone.
-- Home page with Planned, In-progress, and Archived columns in the original design (date-chip cards, live progress card, archived card), plus empty and load-error states.
-- New Trip dialog as a required 3-step flow: location with autocomplete (Open-Meteo geocoding + built-in states/countries), then City / State / Country, then title (auto-suggested) and dates. Next is blocked until each step is valid.
-- Trip page `/trips/:id` with header (scope and status chips, local GMT offset), Archive/Unarchive/Delete, and Flights / Lodging / Itinerary icon tabs (stub content).
-- `lib/geo.ts` gazetteer (airports, countries/states with multi-city routes) used later by the mock provider and offline planner.
+- Events API: `GET/POST /api/trips/:id/events` (POST creates `source: "user"` events), `PATCH/DELETE /api/events/:id`. zod-validated; events must fall inside the trip dates; `source` cannot be changed; booking events cannot be re-timed.
+- Itinerary tab: FullCalendar time grid limited to the trip dates (`validRange`), styled to the design. Shows the whole trip (up to 7 days, then paged by week) plus a Day view.
+- Create (button or click/drag an empty slot), edit, delete, drag to move, and resize. Drag and resize save optimistically and revert with a message if the server rejects them.
+- Side panel: "Selected event" card (time, location, category, source, AI reason when present) and the create/edit form. Category colors and legend match the original design.
 
 ## How to verify
 ```
-npm run seed && npm run dev
+npm run dev
 ```
-1. Home shows 2 planned, 1 in-progress, 1 archived seeded trip.
-2. New Trip: Next is disabled with an empty location; type "Tokyo", pick "Tokyo, Japan", Next; Next is disabled until City/State/Country is chosen; title is pre-filled; create; you land on the trip page.
-3. Create trips with past, current, and future dates: each lands in the right column. Archive a planned trip: it moves to Archived.
+1. Open any trip, Itinerary tab. Click an empty slot: the form opens with that time. Add an event.
+2. Drag it to another day and time, resize it, edit its title. Reload: everything persisted.
+3. Delete it (confirm dialog).
 4. `npm run typecheck && npm test`
 
 ## Known gaps
-- Tab content is stubbed until Phases 2 and 4.
-- Changing trip dates after creation is API-only (no UI yet).
+- No AI events or summary yet (Phase 3).
+- The calendar is laptop-first; on phones it scrolls horizontally inside its card.
 
 ## Suggested PR title
-Phase 1: Trips hub with 3-step New Trip flow and derived trip status
+Phase 2: Itinerary calendar with event CRUD, drag, and resize
