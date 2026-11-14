@@ -2,7 +2,7 @@
 
 import clsx from "clsx";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { KIND_LABEL, type EventKind } from "@/lib/events";
 import type { ItinerarySummary, Trip, TripEvent } from "@/lib/types";
 import { api } from "@/components/ui/fetcher";
@@ -53,6 +53,9 @@ export default function ItineraryView({
   const [events, setEvents] = useState<TripEvent[]>(initialEvents);
   const [summary, setSummary] = useState<ItinerarySummary | null>(initialSummary);
   const [generating, setGenerating] = useState(false);
+  // Latest events for async handlers (avoids reading state inside updater functions).
+  const eventsRef = useRef(events);
+  eventsRef.current = events;
   const [panel, setPanel] = useState<Panel>({ kind: "none" });
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -71,14 +74,8 @@ export default function ItineraryView({
   // Drag / resize: optimistic, revert on failure.
   const onChange = useCallback(
     async ({ id, start, end, revert }: CalendarChange) => {
-      let previous: TripEvent | undefined;
-      setEvents((list) =>
-        list.map((e) => {
-          if (e.id !== id) return e;
-          previous = e;
-          return { ...e, start, end };
-        }),
-      );
+      const previous = eventsRef.current.find((e) => e.id === id);
+      setEvents((list) => list.map((e) => (e.id === id ? { ...e, start, end } : e)));
       try {
         const { event } = await api<{ event: TripEvent }>(`/api/events/${id}`, { method: "PATCH", json: { start, end } });
         replace(event);
@@ -218,7 +215,7 @@ export default function ItineraryView({
             <EventForm key={`create-${panel.draft.start}`} trip={trip} mode="create" initial={panel.draft} onSave={save} onCancel={() => setPanel({ kind: "none" })} busy={busy} error={formError} />
           )}
           {panel.kind === "edit" && selected && (
-            <EventForm key={`edit-${selected.id}`} trip={trip} mode="edit" initial={selected} onSave={save} onCancel={() => setPanel({ kind: "view", id: selected.id })} busy={busy} error={formError} />
+            <EventForm key={`edit-${selected.id}`} trip={trip} mode="edit" initial={selected} lockTimes={selected.source === "booking"} onSave={save} onCancel={() => setPanel({ kind: "view", id: selected.id })} busy={busy} error={formError} />
           )}
           {panel.kind === "view" && selected && (
             <EventDetails trip={trip} event={selected} busy={busy} onEdit={() => setPanel({ kind: "edit", id: selected.id })} onDelete={() => remove(selected)} />

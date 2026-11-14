@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { api } from "@/components/ui/fetcher";
 import { btn } from "@/components/ui/styles";
 
 /** Archive / unarchive / delete for the trip header. */
@@ -14,12 +15,7 @@ export default function TripActions({ tripId, archived }: { tripId: string; arch
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/trips/${tripId}`, {
-        method,
-        headers: body ? { "content-type": "application/json" } : undefined,
-        body: body ? JSON.stringify(body) : undefined,
-      });
-      if (!res.ok) throw new Error((await res.json()).error ?? "Request failed");
+      await api(`/api/trips/${tripId}`, { method, json: body });
       if (method === "DELETE") router.push("/");
       router.refresh();
     } catch (err) {

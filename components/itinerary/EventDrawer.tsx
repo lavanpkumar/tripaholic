@@ -37,11 +37,9 @@ export function EventDetails({
     <div className="rounded-2xl border border-line bg-white p-5">
       <div className="flex items-center justify-between">
         <p className="text-[10px] font-semibold tracking-[1px] text-muted">SELECTED EVENT</p>
-        {event.source !== "booking" && (
-          <button type="button" onClick={onEdit} className="rounded-lg p-1 hover:bg-mint" aria-label="Edit event">
-            <img src="/assets/edit.svg" alt="" />
-          </button>
-        )}
+        <button type="button" onClick={onEdit} className="rounded-lg p-1 hover:bg-mint" aria-label="Edit event">
+          <img src="/assets/edit.svg" alt="" />
+        </button>
       </div>
       <h3 className="mt-2 text-lg font-semibold leading-6">{event.title}</h3>
       <p className="mt-3 text-xs font-medium">{formatDay(event.start.slice(0, 10))}</p>
@@ -63,19 +61,17 @@ export function EventDetails({
         </div>
       )}
       <div className="mt-4 flex gap-2.5">
-        {event.source !== "booking" && (
-          <button type="button" className={clsx(btn.smallSoft, "rounded-[9px]")} onClick={onEdit} disabled={busy}>
-            <img src="/assets/move.svg" alt="" />
-            Edit
-          </button>
-        )}
+        <button type="button" className={clsx(btn.smallSoft, "rounded-[9px]")} onClick={onEdit} disabled={busy}>
+          <img src="/assets/move.svg" alt="" />
+          Edit
+        </button>
         <button type="button" className={clsx(btn.danger, "rounded-[9px]")} onClick={onDelete} disabled={busy}>
           <img src="/assets/delete.svg" alt="" />
           Delete
         </button>
       </div>
       {event.source === "booking" && (
-        <p className="mt-3 text-[11px] leading-4 text-muted">Booked times follow the booking. Cancel it from the Flights or Lodging tab.</p>
+        <p className="mt-3 text-[11px] leading-4 text-muted">You can rename this or add notes; its times follow the booking. Cancel it from the Flights or Lodging tab.</p>
       )}
     </div>
   );
@@ -90,10 +86,13 @@ export function EventForm({
   onCancel,
   busy,
   error,
+  lockTimes = false,
 }: {
   trip: Trip;
   initial: EventDraft;
   mode: "create" | "edit";
+  /** Booking events: times follow the booking, only title/notes/etc. are editable. */
+  lockTimes?: boolean;
   onSave: (draft: EventDraft) => void;
   onCancel: () => void;
   busy: boolean;
@@ -113,7 +112,7 @@ export function EventForm({
 
   // "00:00" as an end time means midnight at the end of the day.
   const endsAtMidnight = end === "00:00";
-  const timeError = !start || !end ? "Pick a start and end time" : !endsAtMidnight && end <= start ? "End must be after start" : null;
+  const timeError = lockTimes ? null : !start || !end ? "Pick a start and end time" : !endsAtMidnight && end <= start ? "End must be after start" : null;
 
   return (
     <form
@@ -123,8 +122,9 @@ export function EventForm({
         if (timeError || !title.trim()) return;
         onSave({
           title: title.trim(),
-          start: `${date}T${start}:00`,
-          end: endsAtMidnight ? `${addDays(date, 1)}T00:00:00` : `${date}T${end}:00`,
+          // Locked (booking) events resend their exact stored times.
+          start: lockTimes ? initial.start : `${date}T${start}:00`,
+          end: lockTimes ? initial.end : endsAtMidnight ? `${addDays(date, 1)}T00:00:00` : `${date}T${end}:00`,
           location: location.trim() || undefined,
           category,
           description: description.trim() || undefined,
@@ -139,7 +139,7 @@ export function EventForm({
         </div>
         <div>
           <label className={label} htmlFor="ev-date">Day</label>
-          <select id="ev-date" className={input} value={date} onChange={(e) => setDate(e.target.value)}>
+          <select id="ev-date" className={input} value={date} disabled={lockTimes} onChange={(e) => setDate(e.target.value)}>
             {days.map((d) => (
               <option key={d} value={d}>
                 {formatDay(d)}
@@ -150,11 +150,11 @@ export function EventForm({
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className={label} htmlFor="ev-start">Start</label>
-            <input id="ev-start" type="time" step={900} className={input} value={start} required onChange={(e) => setStart(e.target.value)} />
+            <input id="ev-start" type="time" step={900} className={input} value={start} required disabled={lockTimes} onChange={(e) => setStart(e.target.value)} />
           </div>
           <div>
             <label className={label} htmlFor="ev-end">End</label>
-            <input id="ev-end" type="time" step={900} className={input} value={end} required onChange={(e) => setEnd(e.target.value)} />
+            <input id="ev-end" type="time" step={900} className={input} value={end} required disabled={lockTimes} onChange={(e) => setEnd(e.target.value)} />
           </div>
         </div>
         <div>
