@@ -87,6 +87,7 @@ export const eventPatchSchema = z
     end: localDateTime.optional(),
     location,
     category,
+    pinned: z.boolean().optional(),
   })
   .strict()
   .superRefine(checkTimes);

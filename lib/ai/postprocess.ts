@@ -49,6 +49,8 @@ const MIN_MINUTES = 15;
 const MAX_MINUTES = 6 * 60;
 const MAX_TRAVEL_MINUTES = 12 * 60;
 const MAX_SHIFTS = 8;
+/** Moving an event further than this changes its character (a morning sight is not an evening one), so drop it instead. */
+const MAX_SHIFT_MINUTES = 240;
 
 const str = (v: unknown, max: number): string | undefined => {
   if (typeof v !== "string") return undefined;
@@ -117,6 +119,7 @@ export function postprocessPlan(raw: unknown[], c: PlanConstraints): Postprocess
     for (let i = 0; i < MAX_SHIFTS; i++) {
       const end = addMinutes(start, duration);
       if (localDate(start) !== day || end > dayLimit || start < lo) break;
+      if (!isTravel && minutesBetween(ev.start, start) > MAX_SHIFT_MINUTES) break;
       const blocker = [...c.fixed, ...accepted].find((w) => overlaps({ start, end }, w));
       if (!blocker) {
         placed = { ...ev, start, end };

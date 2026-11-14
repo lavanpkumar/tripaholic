@@ -147,6 +147,19 @@ export default function ItineraryView({
     }
   }
 
+  async function unpin(ev: TripEvent) {
+    setBusy(true);
+    try {
+      const { event } = await api<{ event: TripEvent }>(`/api/events/${ev.id}`, { method: "PATCH", json: { pinned: false } });
+      replace(event);
+      flash("ok", "Unpinned: Regenerate may replace it");
+    } catch (err) {
+      flash("error", (err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function startCreate(start?: string, end?: string) {
     setFormError(null);
     const day = trip.startDate;
@@ -218,7 +231,7 @@ export default function ItineraryView({
             <EventForm key={`edit-${selected.id}`} trip={trip} mode="edit" initial={selected} lockTimes={selected.source === "booking"} onSave={save} onCancel={() => setPanel({ kind: "view", id: selected.id })} busy={busy} error={formError} />
           )}
           {panel.kind === "view" && selected && (
-            <EventDetails trip={trip} event={selected} busy={busy} onEdit={() => setPanel({ kind: "edit", id: selected.id })} onDelete={() => remove(selected)} />
+            <EventDetails trip={trip} event={selected} busy={busy} onEdit={() => setPanel({ kind: "edit", id: selected.id })} onDelete={() => remove(selected)} onUnpin={() => unpin(selected)} />
           )}
           {(panel.kind === "none" || (selectedId && !selected)) && (
             <div className="rounded-2xl border border-dashed border-line p-5 text-[13px] leading-5 text-muted">

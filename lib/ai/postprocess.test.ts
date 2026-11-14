@@ -39,14 +39,15 @@ describe("postprocessPlan range rules", () => {
   it("does not schedule before landing or after leaving for the airport", () => {
     const r = postprocessPlan(
       [
-        ev("2027-02-08T09:00", "2027-02-08T10:00"), // before landing window -> shifted to 14:00
+        ev("2027-02-08T09:00", "2027-02-08T10:00"), // before landing window -> shifted to 12:00
+        ev("2027-02-08T07:00", "2027-02-08T08:00"), // would need a 5h shift -> dropped
         ev("2027-02-10T17:00", "2027-02-10T18:00"), // after latest -> dropped
         ev("2027-02-10T09:00", "2027-02-10T10:00"),
       ],
-      { ...base, earliest: "2027-02-08T14:00:00", latest: "2027-02-10T13:00:00" },
+      { ...base, earliest: "2027-02-08T12:00:00", latest: "2027-02-10T13:00:00" },
     );
-    expect(r.events.map((e) => e.start)).toEqual(["2027-02-08T14:00:00", "2027-02-10T09:00:00"]);
-    expect(r.dropped).toBe(1);
+    expect(r.events.map((e) => e.start)).toEqual(["2027-02-08T12:00:00", "2027-02-10T09:00:00"]);
+    expect(r.dropped).toBe(2);
   });
 
   it("keeps regular events inside daily hours but lets travel run early", () => {
