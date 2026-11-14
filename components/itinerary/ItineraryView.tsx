@@ -3,7 +3,7 @@
 import clsx from "clsx";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { KIND_LABEL, type EventKind } from "@/lib/events";
+import { KIND_LABEL, overlaps, type EventKind } from "@/lib/events";
 import type { ItinerarySummary, Trip, TripEvent } from "@/lib/types";
 import { api } from "@/components/ui/fetcher";
 import { btn } from "@/components/ui/styles";
@@ -173,6 +173,9 @@ export default function ItineraryView({
     ai: events.filter((e) => e.source === "ai").length,
     user: events.filter((e) => e.source === "user").length,
   };
+  // AI events planned before a booking was made can collide with it; offer a one-click replan.
+  const bookingBlocks = events.filter((e) => e.source === "booking");
+  const conflicts = events.filter((e) => e.source === "ai" && bookingBlocks.some((b) => overlaps(e, b))).length;
 
   return (
     <div>
@@ -205,6 +208,18 @@ export default function ItineraryView({
           </button>
         </div>
       </div>
+
+      {conflicts > 0 && !generating && (
+        <div role="status" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-sand px-4 py-3 text-[13px] text-gold">
+          <span>
+            {conflicts} AI suggestion{conflicts === 1 ? " overlaps" : "s overlap"} your bookings. Regenerate to plan around your flights and hotel; your own events stay put.
+          </span>
+          <button type="button" className={btn.smallSoft} onClick={() => generate()}>
+            <img src="/assets/sparkle-regen.svg" alt="" />
+            Replan around bookings
+          </button>
+        </div>
+      )}
 
       <div className="mt-5 grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
         <div className="itinerary-cal relative min-w-0 overflow-hidden rounded-[14px] border border-line bg-white">
