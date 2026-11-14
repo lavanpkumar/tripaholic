@@ -101,10 +101,11 @@ On a fresh Vultr **Cloud Compute** VM (Ubuntu 24.04; 2 GB RAM recommended, small
    ```bash
    curl -fsSL https://raw.githubusercontent.com/lavanpkumar/tripaholic/main/deploy/setup.sh -o setup.sh
    sudo bash setup.sh your-domain.example        # installs Node 22 + Caddy, clones, writes /opt/tripaholic/.env
-   sudo nano /opt/tripaholic/.env                # MONGODB_URI, GEMINI_API_KEY, GEMINI_MODEL, NEXT_PUBLIC_APP_URL
-   sudo bash setup.sh your-domain.example        # smoke tests, build, systemd service, firewall, HTTPS
+   sudo nano /opt/tripaholic/.env                # fill in what you have: MONGODB_URI, GEMINI_API_KEY, GEMINI_MODEL, NEXT_PUBLIC_APP_URL
+   sudo bash setup.sh your-domain.example        # checks, build, systemd service, firewall, HTTPS
    cd /opt/tripaholic/app && sudo -u tripaholic npm run seed
    ```
+   Missing keys don't block a deploy. Without `GEMINI_API_KEY` (or if its check fails) the app runs the offline planner and agent. Without `MONGODB_URI` it uses a local file store in `/opt/tripaholic/data`, which is kept across deploys. The script ends by saying which mode each one is in. A `MONGODB_URI` that is set but fails its check always stops the script. Once both keys are in, rerun with `--strict` (`sudo bash setup.sh your-domain.example --strict`): it fails unless Atlas and Gemini both check out. Use that for the final pre-submission deploy.
 4. Check it: `curl https://your-domain.example/api/health`, then `npm run demo:check -- https://your-domain.example --runs 3` from your laptop.
 
 Updates: `sudo /opt/tripaholic/app/deploy/deploy.sh main` (pull, `npm ci`, build, restart, health check). Logs: `journalctl -u tripaholic -f`.

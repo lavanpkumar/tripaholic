@@ -69,3 +69,6 @@ One line per decision or deviation from PLAN.md. Newest blockers first.
 - Caddy does not compress the agent's SSE route and flushes immediately (`flush_interval -1`), so steps stream live.
 - Secrets live only in `/opt/tripaholic/.env` (mode 600, read by systemd); scripts read it through an `.env.local` symlink. Nothing secret is committed or shown by `/api/health`.
 - Claude Code could not create the VM, register the domain, or connect Atlas/Gemini (no account access). Those steps are scripted and listed in `docs/SUBMISSION.md`.
+- Deploys don't wait for keys (PR #7 request): `setup.sh` treats a missing or failing Gemini key as a warning (offline mode) and a missing `MONGODB_URI` as a warning (file store), but a set-and-broken `MONGODB_URI` stays fatal. `--strict` makes both fallbacks fatal for the final pre-submission deploy.
+- The file store honors `DATA_DIR`; on the server it is `/opt/tripaholic/data`, because `next build` wipes `.next/` (where `cwd/.data` would otherwise live under the standalone server).
+- `.env.example` keeps comments on their own lines, since systemd's `EnvironmentFile` doesn't strip inline `# ...`. (PR #7 review.)
