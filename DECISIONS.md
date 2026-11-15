@@ -81,6 +81,7 @@ One line per decision or deviation from PLAN.md. Newest blockers first.
 
 ## Nightlife planning (cc/nightlife-planning)
 - Overnight rule: events must start on a trip day; evening events (planned start >= 18:00) may end up to 03:00 the next morning, including after the last day (`tripBounds.max = endDate+1 03:00`). Daytime events still end by 23:00. Classification uses the planned start, so post-processing never pushes a daytime event into the night.
-- The API uses the same bounds (start on a trip day, end by 03:00 after the trip); it does not enforce the 18:00 rule on user events, so people can enter odd-hours plans.
+- One overnight rule for user input, shared by the event form and the API (`eventTimesError`): crossing midnight is allowed only for events starting at 18:00 or later, ending by 03:00 the next day, and never across more than one night. It's enforced in zod on create, and on PATCH against the merged times only when they change, so existing events can always be renamed. (PR #9 review; this replaces the earlier lenient API behavior.)
+- The offline planner's summary is written after post-processing (`describeOfflinePlan`), from the events actually on the calendar. (PR #9 review.)
 - The calendar starts at 00:00 when any event crosses midnight. If the last night spills past the trip, it shows that extra morning column (shaded, "after trip"), where creating or dropping events is not allowed.
 - The offline planner reads simple nightlife keywords only; the Gemini prompt treats the whole traveler request as must-follow.

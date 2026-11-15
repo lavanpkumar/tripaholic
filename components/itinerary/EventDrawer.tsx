@@ -3,7 +3,7 @@
 import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { addDays, eachDay, formatDay, hhmm } from "@/lib/dates";
-import { CATEGORY_LABEL, KIND_LABEL, NIGHT_END, crossesMidnight, eventKind } from "@/lib/events";
+import { CATEGORY_LABEL, KIND_LABEL, crossesMidnight, eventKind, eventTimesError } from "@/lib/events";
 import { EVENT_CATEGORIES, type EventCategory, type Trip, type TripEvent } from "@/lib/types";
 import { btn, input, label } from "@/components/ui/styles";
 
@@ -122,16 +122,18 @@ export function EventForm({
   useEffect(() => titleRef.current?.focus(), []);
 
   // An end time at or before the start means the next day: late nights can run until 03:00.
-  const overnight = Boolean(start && end) && end <= start;
+  // An end time earlier than the start means the next day. Whether that's allowed (evening starts
+  // only, ending by 03:00) is the same shared rule the API enforces.
+  const overnight = Boolean(start && end) && end < start;
+  const startIso = `${date}T${start}:00`;
+  const endIso = overnight ? `${addDays(date, 1)}T${end}:00` : `${date}T${end}:00`;
   const timeError = lockTimes
     ? null
     : !start || !end
       ? "Pick a start and end time"
       : start === end
         ? "End must be after start"
-        : overnight && end > NIGHT_END
-        ? `End must be after the start (overnight events can end by ${NIGHT_END})`
-        : null;
+        : eventTimesError(startIso, endIso);
 
   return (
     <form
@@ -142,8 +144,8 @@ export function EventForm({
         onSave({
           title: title.trim(),
           // Locked (booking) events resend their exact stored times.
-          start: lockTimes ? initial.start : `${date}T${start}:00`,
-          end: lockTimes ? initial.end : overnight ? `${addDays(date, 1)}T${end}:00` : `${date}T${end}:00`,
+          start: lockTimes ? initial.start : startIso,
+          end: lockTimes ? initial.end : endIso,
           location: location.trim() || undefined,
           category,
           description: description.trim() || undefined,

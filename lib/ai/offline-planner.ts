@@ -10,10 +10,16 @@ import type { PlannedEvent } from "./postprocess";
  */
 
 export interface DraftPlan {
-  summary: string;
-  highlights: { title: string; body: string }[];
   events: PlannedEvent[];
 }
+
+export interface PlanDescription {
+  summary: string;
+  highlights: { title: string; body: string }[];
+}
+
+/** Title prefix of offline nightlife events; the summary counts these after post-processing. */
+export const NIGHTLIFE_PREFIX = "Nightlife in ";
 
 type Maker = (place: string) => { title: string; description: string; reason: string };
 
@@ -91,7 +97,6 @@ export function offlinePlan(ctx: PlannerContext, c: DerivedConstraints): DraftPl
 
   const nightlife = nightlifeRequest(ctx.preferences);
   const departureDay = c.departure?.at.slice(0, 10);
-  let nightsOut = 0;
   let lateLastNight = false;
 
   days.forEach((day, i) => {
@@ -117,7 +122,7 @@ export function offlinePlan(ctx: PlannerContext, c: DerivedConstraints): DraftPl
     lateLastNight = false;
     if (nightlife && !earlyStartTomorrow) {
       events.push({
-        title: `Nightlife in ${place}`,
+        title: `${NIGHTLIFE_PREFIX}${place}`,
         description: nightlife.description,
         reason: "You asked for nights out, so this starts after dinner and runs late. The next morning starts later to make up for it.",
         start: at(day, "22:30"),
@@ -125,11 +130,22 @@ export function offlinePlan(ctx: PlannerContext, c: DerivedConstraints): DraftPl
         category: "activity",
         location: place,
       });
-      nightsOut++;
       lateLastNight = true;
     }
   });
 
+  return { events };
+}
+
+/**
+ * Summary and highlights for an offline plan, written from the events that survived
+ * post-processing, so counts like "every night ends with a night out" are always true.
+ */
+export function describeOfflinePlan(ctx: PlannerContext, c: DerivedConstraints, finalEvents: PlannedEvent[]): PlanDescription {
+  const { trip } = ctx;
+  const days = eachDay(trip.startDate, trip.endDate);
+  const { stops } = routeStops(ctx);
+  const nightsOut = finalEvents.filter((e) => e.title.startsWith(NIGHTLIFE_PREFIX)).length;
   const name = trip.destination.name;
   const scopeLine =
     trip.destination.scope === "city"
@@ -157,6 +173,5 @@ export function offlinePlan(ctx: PlannerContext, c: DerivedConstraints): DraftPl
         ? { title: "Built around your bookings", body: `${bookingBits[0][0].toUpperCase()}${bookingBits[0].slice(1)}.` }
         : { title: "Easy to make your own", body: "Drag anything to a new time, delete what doesn't fit, or add your own plans." },
     ],
-    events,
   };
 }

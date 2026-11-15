@@ -58,6 +58,23 @@ export function withinTrip(trip: Pick<Trip, "startDate" | "endDate">, start: str
   return start >= min && start < lastStart && end <= max && end > start;
 }
 
+/**
+ * Why an event's times are invalid, or null if they're fine. Shared by the event form and the
+ * API so they can't disagree: an event may cross midnight only if it starts at 18:00 or later,
+ * and then must end by 03:00 the next morning. (Catches typos like 10:00 -> 02:00, which would
+ * otherwise become a 16-hour event.)
+ */
+export function eventTimesError(start: string, end: string): string | null {
+  if (end <= start) return "End must be after start";
+  const startDay = start.slice(0, 10);
+  const endDay = end.slice(0, 10);
+  if (endDay === startDay) return null;
+  if (endDay !== addDays(startDay, 1)) return "Events can't run across more than one night";
+  if (start.slice(11, 16) < EVENING_START) return `Only events starting at ${EVENING_START} or later can run past midnight (until ${NIGHT_END} the next day)`;
+  if (end.slice(11, 16) > NIGHT_END) return `Late-night events must end by ${NIGHT_END}`;
+  return null;
+}
+
 /** True if the event ends on a later calendar day than it starts. */
 export function crossesMidnight(e: { start: string; end: string }): boolean {
   return e.end.slice(0, 10) > e.start.slice(0, 10) && e.end.slice(11, 19) !== "00:00:00";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_TRIP_DAYS, dateRangeError, destinationSchema, isValidTimeZone, tripCreateSchema, tripPatchSchema } from "./validation";
+import { MAX_TRIP_DAYS, dateRangeError, destinationSchema, eventCreateSchema, isValidTimeZone, tripCreateSchema, tripPatchSchema } from "./validation";
 
 const trip = (over: Record<string, unknown> = {}) => ({
   title: "Tokyo Spring Trip",
@@ -61,5 +61,18 @@ describe("tripPatchSchema", () => {
     expect(tripPatchSchema.safeParse({ archived: true }).success).toBe(true);
     expect(tripPatchSchema.safeParse({ userId: "someone-else" }).success).toBe(false);
     expect(tripPatchSchema.safeParse({ destination: { name: "Paris" } }).success).toBe(false);
+  });
+});
+
+describe("eventCreateSchema overnight rule", () => {
+  const ev = (start: string, end: string) => eventCreateSchema.safeParse({ title: "Night", start, end });
+  it("accepts 22:00 -> 02:00 next day", () => {
+    expect(ev("2027-04-02T22:00", "2027-04-03T02:00").success).toBe(true);
+  });
+  it("rejects 10:00 -> 02:00 next day and equal times, with a clear message", () => {
+    const typo = ev("2027-04-02T10:00", "2027-04-03T02:00");
+    expect(typo.success).toBe(false);
+    expect(typo.error?.issues[0].message).toMatch(/starting at 18:00 or later/);
+    expect(ev("2027-04-02T22:00", "2027-04-02T22:00").success).toBe(false);
   });
 });

@@ -4,7 +4,7 @@ import { env } from "../env";
 import { EVENT_CATEGORIES } from "../types";
 import { buildConstraints, type DerivedConstraints, type PlannerContext } from "./context";
 import { GeminiError, classifyGeminiError, generateJson, geminiConfigured, type GeminiDeps } from "./gemini";
-import { offlinePlan } from "./offline-planner";
+import { describeOfflinePlan, offlinePlan } from "./offline-planner";
 import { postprocessPlan, type PlannedEvent } from "./postprocess";
 
 /** Itinerary planner (PLAN.md Section 6.1): Gemini structured output, with the offline planner as fallback. */
@@ -183,9 +183,11 @@ export async function planItinerary(ctx: PlannerContext, deps?: GeminiDeps): Pro
 
   const draft = offlinePlan(ctx, c);
   const pp = postprocessPlan(draft.events, c);
+  // Describe what actually made it onto the calendar, not the draft.
+  const { summary, highlights } = describeOfflinePlan(ctx, c, pp.events);
   return {
-    summary: draft.summary,
-    highlights: draft.highlights,
+    summary,
+    highlights,
     events: pp.events,
     mode: "offline",
     grounded: false,

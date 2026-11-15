@@ -81,3 +81,25 @@ describe("overnight events through the API", () => {
     expect((await post({ title: "After", start: "2027-04-06T00:30", end: "2027-04-06T01:30" })).status).toBe(400);
   });
 });
+
+describe("overnight rule through the API", () => {
+  const post = (body: unknown) => createEvent(new Request("http://test/api", { method: "POST", body: JSON.stringify(body) }), ctx(trip.id));
+
+  it("POST: 22:00 -> 02:00 is accepted; 10:00 -> 02:00 and equal times are rejected", async () => {
+    expect((await post({ title: "Club", start: "2027-04-02T22:00", end: "2027-04-03T02:00" })).status).toBe(201);
+    const typo = await post({ title: "Typo", start: "2027-04-02T10:00", end: "2027-04-03T02:00" });
+    expect(typo.status).toBe(400);
+    expect((await typo.json()).error).toMatch(/starting at 18:00 or later/);
+    expect((await post({ title: "Zero", start: "2027-04-02T22:00", end: "2027-04-02T22:00" })).status).toBe(400);
+  });
+
+  it("PATCH: moving a night's start into the daytime is rejected (merged times), renaming is not", async () => {
+    const [night] = await createEvents([{ tripId: trip.id, title: "Club", start: "2027-04-02T22:00:00", end: "2027-04-03T02:00:00", source: "user" }]);
+    const moved = await patchEvent(req({ start: "2027-04-02T15:00" }), ctx(night.id));
+    expect(moved.status).toBe(400);
+    expect((await moved.json()).error).toMatch(/starting at 18:00 or later/);
+    // A legacy event that breaks the rule can still be renamed: unchanged times aren't re-checked.
+    const [legacy] = await createEvents([{ tripId: trip.id, title: "Old", start: "2027-04-03T10:00:00", end: "2027-04-04T02:00:00", source: "user" }]);
+    expect((await patchEvent(req({ title: "Renamed", start: "2027-04-03T10:00", end: "2027-04-04T02:00" }), ctx(legacy.id))).status).toBe(200);
+  });
+});

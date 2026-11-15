@@ -173,3 +173,25 @@ describe("nightlife requests", () => {
     expect(prompt).toContain("TRAVELER'S REQUEST (must shape the plan): I want to go clubbing at night");
   });
 });
+
+describe("offline nightlife summary reflects the final calendar", () => {
+  it("counts nights out after post-processing, so a dropped night isn't claimed", async () => {
+    const trip = await createTrip({
+      userId: "demo-user",
+      title: "Miami",
+      destination: { name: "Miami, United States", scope: "city", timezone: "America/New_York" },
+      startDate: "2027-04-01",
+      endDate: "2027-04-04",
+      archived: false,
+    });
+    // The traveler's own late plan on night 2 leaves no room for the planner's night out.
+    await createEvents([{ tripId: trip.id, title: "Birthday party", start: "2027-04-02T22:00:00", end: "2027-04-03T02:30:00", source: "user" }]);
+    const { events, summary } = await generateItinerary(trip, { preferences: "clubbing at night" });
+    const nights = events.filter((e) => e.source === "ai" && e.title.startsWith("Nightlife in "));
+    expect(nights).toHaveLength(3);
+    expect(nights.some((n) => n.start.startsWith("2027-04-02"))).toBe(false);
+    expect(summary.summary).not.toMatch(/every night/);
+    expect(summary.summary).toContain("3 of 4 nights end with a night out");
+    expect(summary.highlights.find((h) => h.title === "Nights out, as you asked")?.body).toContain("on 3 nights");
+  });
+});

@@ -1,5 +1,5 @@
 import { HttpError, json, readBody, requireTrip, route, type IdParams } from "@/lib/api";
-import { withinTrip } from "@/lib/events";
+import { eventTimesError, withinTrip } from "@/lib/events";
 import { deleteEvent, getEvent, updateEvent } from "@/lib/store/repo";
 import type { TripEvent } from "@/lib/types";
 import { eventPatchSchema } from "@/lib/validation";
@@ -21,7 +21,12 @@ export const PATCH = route<IdParams>(async (req, { params }) => {
   // Forms resend unchanged times, so only a real change is rejected.
   if (event.source === "booking" && (start !== event.start || end !== event.end))
     throw new HttpError(409, "Booking times follow the booking. Change or cancel the booking instead.");
-  if (end <= start) throw new HttpError(400, "End must be after start");
+  // A patch may carry only one side, so check the merged times (only when they actually change,
+  // so renaming an existing event never fails).
+  if (start !== event.start || end !== event.end) {
+    const msg = eventTimesError(start, end);
+    if (msg) throw new HttpError(400, msg);
+  }
   if (!withinTrip(trip, start, end)) throw new HttpError(400, "Events must fall within the trip dates");
   // Moving or editing an AI suggestion means the traveler wants it: pin it so Regenerate keeps it.
   if (event.source === "ai" && patch.pinned === undefined) {

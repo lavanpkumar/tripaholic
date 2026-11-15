@@ -15,12 +15,13 @@ The planner couldn't plan late nights. Post-processing dropped any non-travel ev
   - The calendar starts at 00:00 when any event crosses midnight, so the after-midnight part shows at the top of the next day.
   - Every segment of an overnight event is labeled with its full time range, e.g. "22:30–02:00 +1".
   - If the last night runs past the trip, the morning after is shown as a shaded "after trip" column, where you can't create or drop events.
-  - The event form treats an end time earlier than the start as the next day (up to 03:00) and says "Ends the next day at …". The event card shows "(next day)".
+  - The event form treats an end time earlier than the start as the next day only for evening starts (18:00 or later), ending by 03:00, and says "Ends the next day at …". Anything else, like the 10:00 → 02:00 typo, is rejected with a clear message. The API enforces the same rule through one shared function (`eventTimesError` in `lib/events.ts`): zod on create, and the merged times on PATCH when they change. The event card shows "(next day)". (PR #9 review.)
+  - The offline summary and highlights are written from the post-processed events, so "every night ends with a night out" is only claimed when it's true. (PR #9 review.)
 - `scripts/demo-check.ts` allows the 03:00 end bound.
 
 ## How to verify
 ```
-npm test                                   # 84 tests
+npm test                                   # 93 tests
 npm run dev
 ```
 1. Create a city trip to Miami. On the Itinerary tab, type "I want to go clubbing at night" in **What do you want from this trip?** and click **Generate with AI**.
@@ -30,7 +31,7 @@ npm run dev
 5. `npm run demo:check -- <url> --runs 3`
 
 ## Verification done
-- **Live Gemini + Atlas** (your dev server on :3000): a Miami city trip (Dec 4–7) generated with "I want to go clubbing at night" in 28 s gave 14 events. Three were club nights past midnight (22:30–02:00, 23:00–02:30, 22:30–02:00), with late starts after them, no overlaps, and a summary built around the request. The `.ics` has a `VTIMEZONE` for America/New_York, and night `DTEND`s fall on the next date. In the rendered DOM, every night segment carries its full label, and a temporary last-night event produced the "8 Tue" after-trip column; I deleted it afterwards. **The "Miami Nights" trip is still in your Atlas data.** Delete it when you're done.
+- **Live Gemini + Atlas** (your dev server on :3000): a Miami city trip (Dec 4–7) generated with "I want to go clubbing at night" in 28 s gave 14 events. Three were club nights past midnight (22:30–02:00, 23:00–02:30, 22:30–02:00), with late starts after them, no overlaps, and a summary built around the request. The `.ics` has a `VTIMEZONE` for America/New_York, and night `DTEND`s fall on the next date. In the rendered DOM, every night segment carries its full label, and a temporary last-night event produced the "8 Tue" after-trip column; I deleted it afterwards. The "Miami Nights" test trip has since been deleted from Atlas (PR #9 housekeeping).
 - **Offline**, on a production build in file-store mode (no Atlas writes): the same request gave nightlife on all 4 nights (22:30–01:30, including the last one past the end date), no overlaps, the summary line, and correct `.ics`.
 - `npm test`: 84/84. `npm run demo:check -- <offline build> --runs 3`: PASS (8.0 s, 7.2 s, 7.1 s). It wasn't run against your Atlas server because that database has no seeded demo trips; seeding would have written four demo trips into it.
 
