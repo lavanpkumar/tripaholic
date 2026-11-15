@@ -185,3 +185,13 @@ textarea:focus-visible {
 .legend-food { background: var(--color-cat-food-fg); }
 .legend-travel { background: var(--color-cat-booking-fg); }
 .legend-user { background: var(--color-cat-user-fg); }
+
+/* The morning after the trip, shown only when the last night out runs past midnight. */
+.itinerary-cal .fc .after-trip {
+  background: repeating-linear-gradient(135deg, #fafcfa 0 8px, #f1f5f2 8px 16px);
+}
+.itinerary-cal .fc .fc-col-header-cell.after-trip .fc-col-header-cell-cushion::after {
+  content: " · after trip";
+  color: var(--color-muted);
+  font-weight: 500;
+}

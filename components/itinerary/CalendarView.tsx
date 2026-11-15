@@ -6,7 +6,7 @@ import FullCalendar from "@fullcalendar/react";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import { useMemo } from "react";
 import { addDays, tripLengthDays } from "@/lib/dates";
-import { eventKind } from "@/lib/events";
+import { crossesMidnight, eventKind } from "@/lib/events";
 import type { Trip, TripEvent } from "@/lib/types";
 
 /**
@@ -32,11 +32,21 @@ function hourFloor(events: TripEvent[], fallback: number): number {
   return min;
 }
 
+/** Full start–end for every segment, so both halves of a night out read "22:30–02:00 +1". */
+function timeLabel(arg: EventContentArg): string {
+  const { start, end } = arg.event;
+  if (!start || !end) return arg.timeText;
+  const s = toFloating(start);
+  const e = toFloating(end);
+  const nextDay = crossesMidnight({ start: s, end: e });
+  return `${s.slice(11, 16)}–${e.slice(11, 16)}${nextDay ? " +1" : ""}`;
+}
+
 function renderEvent(arg: EventContentArg) {
   const source = arg.event.extendedProps.source as TripEvent["source"];
   return (
     <div className="flex h-full flex-col overflow-hidden px-1.5 py-1">
-      <p className="text-[10px] font-medium opacity-90">{arg.timeText}</p>
+      <p className="text-[10px] font-medium opacity-90">{timeLabel(arg)}</p>
       <p className="mt-0.5 text-[11.5px] font-semibold leading-[1.25]">
         {source === "ai" && <img src="/assets/sparkle.svg" alt="AI suggestion" className="mr-1 inline h-3 w-3 align-[-1px]" />}
         {arg.event.extendedProps.pinned && <span aria-label="Pinned" className="mr-1">📌</span>}
@@ -63,8 +73,14 @@ export default function CalendarView({
   onChange: (change: CalendarChange) => void;
 }) {
   const days = tripLengthDays(trip.startDate, trip.endDate);
-  const visibleDays = Math.min(days, 7);
-  const minHour = Math.min(7, hourFloor(events, 7));
+  const afterTrip = addDays(trip.endDate, 1);
+  const lastStart = `${afterTrip}T00:00:00`;
+  // A last night out that runs past midnight spills into the morning after the trip: show that column.
+  const spill = events.some((e) => e.end > lastStart);
+  const shownDays = days + (spill ? 1 : 0);
+  const visibleDays = Math.min(shownDays, 7);
+  // Nights past midnight continue at the top of the next day's column, so start the grid at 00:00.
+  const minHour = events.some(crossesMidnight) ? 0 : Math.min(7, hourFloor(events, 7));
 
   const fcEvents: EventInput[] = useMemo(
     () =>
@@ -96,8 +112,12 @@ export default function CalendarView({
         timeGridDay: { buttonText: "Day" },
       }}
       initialDate={trip.startDate}
-      validRange={{ start: trip.startDate, end: addDays(trip.endDate, 1) }}
-      headerToolbar={{ left: days > visibleDays ? "prev,next" : "", center: "title", right: "tripRange,timeGridDay" }}
+      validRange={{ start: trip.startDate, end: addDays(afterTrip, spill ? 1 : 0) }}
+      headerToolbar={{ left: shownDays > visibleDays ? "prev,next" : "", center: "title", right: "tripRange,timeGridDay" }}
+      dayHeaderClassNames={(arg) => (toFloating(arg.date) >= lastStart ? ["after-trip"] : [])}
+      dayCellClassNames={(arg) => (toFloating(arg.date) >= lastStart ? ["after-trip"] : [])}
+      selectAllow={(span) => toFloating(span.start) < lastStart}
+      eventAllow={(span) => toFloating(span.start) < lastStart}
       titleFormat={{ month: "short", day: "numeric", year: "numeric" }}
       dayHeaderFormat={{ weekday: "short", day: "numeric" }}
       slotMinTime={`${String(minHour).padStart(2, "0")}:00:00`}

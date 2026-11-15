@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eachDay, formatDay } from "../dates";
+import { addDays, eachDay, formatDay } from "../dates";
 import { env } from "../env";
 import { EVENT_CATEGORIES } from "../types";
 import { buildConstraints, type DerivedConstraints, type PlannerContext } from "./context";
@@ -90,11 +90,15 @@ export function buildPrompt(ctx: PlannerContext, c: DerivedConstraints): { syste
     "You are Tripaholic's itinerary planner. You plan realistic, enjoyable days and explain your choices plainly.",
     "Rules:",
     `- Times are local wall-clock time at the destination (${d.timezone}), format YYYY-MM-DDTHH:mm with no offset.`,
-    `- Every event is between ${trip.startDate}T00:00 and ${trip.endDate}T23:59.`,
+    `- Every event starts between ${trip.startDate}T00:00 and ${trip.endDate}T23:59. An evening event (starting at 18:00 or later) may end as late as 03:00 the next morning, written with the next day's date (e.g. ${trip.endDate}T22:30 to ${addDays(trip.endDate, 1)}T01:30). Daytime events end by 23:00.`,
     "- Never overlap the FIXED events listed by the user; they are the traveler's own plans or bookings. Plan around them and do not repeat them.",
     c.earliest ? `- The traveler lands at ${c.arrival!.at.slice(0, 16)}; schedule nothing before ${c.earliest.slice(0, 16)}.` : "",
     c.latest ? `- The traveler leaves for the airport at ${c.latest.slice(0, 16)}; schedule nothing after that.` : "",
-    "- Pace: 2-4 events per day (fewer on arrival/departure days). Meals at mealtimes (lunch 12:00-14:00, dinner 18:30-21:00). Sights and outdoor activities in the morning or late afternoon. Leave gaps for rest and getting around.",
+    "- Pace: 2-4 events per day normally (fewer on arrival/departure days); up to 5 on a day when the traveler's request needs it. Meals at mealtimes (lunch 12:00-14:00, dinner 18:30-21:00). Sights and outdoor activities in the morning or late afternoon. Leave gaps for rest and getting around.",
+    "- Late evening and nightlife are allowed: bars, clubs, live music, night markets, roughly 21:30-02:00. After a late night, start the next day later (a late breakfast or brunch, nothing before about 10:00).",
+    ctx.preferences
+      ? "- The traveler's request (below) must clearly shape the plan: if they ask for something, include it on the relevant days at the right time of day (e.g. clubbing means late-night events on most nights), and say how it shaped the plan in the summary."
+      : "",
     `- ${SCOPE_RULE[d.scope]}`,
     "- Suggest real, well-known places. Do not invent precise opening hours, prices, or reservation details.",
     `- category is one of: ${EVENT_CATEGORIES.join(", ")}.`,
@@ -124,7 +128,7 @@ export function buildPrompt(ctx: PlannerContext, c: DerivedConstraints): { syste
     ...bookings,
     fixed.length ? "FIXED events (do not overlap):" : "FIXED events: none.",
     ...fixed,
-    ctx.preferences ? `Traveler's request for this plan: ${ctx.preferences}` : "",
+    ctx.preferences ? `TRAVELER'S REQUEST (must shape the plan): ${ctx.preferences}` : "",
   ]
     .filter(Boolean)
     .join("\n");
