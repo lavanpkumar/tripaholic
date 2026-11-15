@@ -111,7 +111,7 @@ async function runOnce(n: number): Promise<number> {
     check(ai.length >= 4, `only ${ai.length} AI events`);
     check(fixed.some((e: Json) => e.source === "booking"), "no booking blocks on the calendar");
     for (const e of ai) check(!fixed.some((f: Json) => overlap(e, f)), `AI event "${e.title}" overlaps a booking`);
-    for (const e of gen.events) check(e.start >= `${startDate}T00:00:00` && e.end <= `${plusDays(25)}T00:00:00`, `event "${e.title}" is outside the trip`);
+    for (const e of gen.events) check(e.start >= `${startDate}T00:00:00` && e.end <= `${plusDays(25)}T03:00:00`, `event "${e.title}" is outside the trip`);
     const landing = fFinal.booking.details.arrivalAtDestination as string;
     for (const e of ai) check(e.start >= landing, `AI event "${e.title}" is before the flight lands`);
     check(gen.summary.summary.length > 40, "summary missing");

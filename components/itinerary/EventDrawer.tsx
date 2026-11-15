@@ -3,7 +3,7 @@
 import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { addDays, eachDay, formatDay, hhmm } from "@/lib/dates";
-import { CATEGORY_LABEL, KIND_LABEL, eventKind } from "@/lib/events";
+import { CATEGORY_LABEL, KIND_LABEL, crossesMidnight, eventKind, eventTimesError } from "@/lib/events";
 import { EVENT_CATEGORIES, type EventCategory, type Trip, type TripEvent } from "@/lib/types";
 import { btn, input, label } from "@/components/ui/styles";
 
@@ -46,7 +46,8 @@ export function EventDetails({
       <h3 className="mt-2 text-lg font-semibold leading-6">{event.title}</h3>
       <p className="mt-3 text-xs font-medium">{formatDay(event.start.slice(0, 10))}</p>
       <p className="mt-1 text-xs text-muted">
-        {hhmm(event.start)}–{hhmm(event.end)} · {trip.destination.name.split(",")[0]} local time
+        {hhmm(event.start)}–{hhmm(event.end)}
+        {crossesMidnight(event) && " (next day)"} · {trip.destination.name.split(",")[0]} local time
       </p>
       {event.location && <p className="mt-1 text-xs text-muted">📍 {event.location}</p>}
       <p className="mt-2 text-[11px] font-medium text-pine">
@@ -120,9 +121,19 @@ export function EventForm({
 
   useEffect(() => titleRef.current?.focus(), []);
 
-  // "00:00" as an end time means midnight at the end of the day.
-  const endsAtMidnight = end === "00:00";
-  const timeError = lockTimes ? null : !start || !end ? "Pick a start and end time" : !endsAtMidnight && end <= start ? "End must be after start" : null;
+  // An end time at or before the start means the next day: late nights can run until 03:00.
+  // An end time earlier than the start means the next day. Whether that's allowed (evening starts
+  // only, ending by 03:00) is the same shared rule the API enforces.
+  const overnight = Boolean(start && end) && end < start;
+  const startIso = `${date}T${start}:00`;
+  const endIso = overnight ? `${addDays(date, 1)}T${end}:00` : `${date}T${end}:00`;
+  const timeError = lockTimes
+    ? null
+    : !start || !end
+      ? "Pick a start and end time"
+      : start === end
+        ? "End must be after start"
+        : eventTimesError(startIso, endIso);
 
   return (
     <form
@@ -133,8 +144,8 @@ export function EventForm({
         onSave({
           title: title.trim(),
           // Locked (booking) events resend their exact stored times.
-          start: lockTimes ? initial.start : `${date}T${start}:00`,
-          end: lockTimes ? initial.end : endsAtMidnight ? `${addDays(date, 1)}T00:00:00` : `${date}T${end}:00`,
+          start: lockTimes ? initial.start : startIso,
+          end: lockTimes ? initial.end : endIso,
           location: location.trim() || undefined,
           category,
           description: description.trim() || undefined,
@@ -186,6 +197,7 @@ export function EventForm({
           <textarea id="ev-desc" rows={2} className={input} value={description} maxLength={2000} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" />
         </div>
       </div>
+      {!timeError && overnight && !lockTimes && <p className="mt-3 text-xs text-sage">Ends the next day at {end}.</p>}
       {(timeError || error) && <p className="mt-3 text-xs text-danger">{timeError ?? error}</p>}
       <div className="mt-4 flex justify-end gap-2">
         <button type="button" className={btn.ghost} onClick={onCancel}>

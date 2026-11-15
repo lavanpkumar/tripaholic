@@ -1,4 +1,4 @@
-import { at, eachDay, hhmm } from "../dates";
+import { addDays, at, eachDay, hhmm } from "../dates";
 import { findRegion } from "../geo";
 import type { DerivedConstraints, PlannerContext } from "./context";
 import type { PlannedEvent } from "./postprocess";
@@ -10,10 +10,16 @@ import type { PlannedEvent } from "./postprocess";
  */
 
 export interface DraftPlan {
-  summary: string;
-  highlights: { title: string; body: string }[];
   events: PlannedEvent[];
 }
+
+export interface PlanDescription {
+  summary: string;
+  highlights: { title: string; body: string }[];
+}
+
+/** Title prefix of offline nightlife events; the summary counts these after post-processing. */
+export const NIGHTLIFE_PREFIX = "Nightlife in ";
 
 type Maker = (place: string) => { title: string; description: string; reason: string };
 
@@ -65,6 +71,20 @@ export function routeStops(ctx: PlannerContext): { stops: string[]; byDay: strin
   return { stops, byDay };
 }
 
+const NIGHTLIFE = /\b(club(s|bing)?|nightclubs?|nightlife|night ?life|night out|bars?|bar-?hopping|pub crawl|part(y|ying|ies)|live music|dancing)\b/i;
+
+/** The offline planner has no language model, so it reads the request for simple keywords. */
+export function nightlifeRequest(preferences?: string): { description: string } | null {
+  const m = preferences?.match(NIGHTLIFE);
+  if (!m) return null;
+  const word = m[1].toLowerCase();
+  if (word.startsWith("live") || word === "dancing")
+    return { description: "Live music and dancing, then a late bar. Check who's playing and the door times on the day." };
+  if (word.startsWith("club") || word.startsWith("nightclub") || word.startsWith("part"))
+    return { description: "Clubs and late bars in the liveliest district. Check the dress code and cover charge on the night." };
+  return { description: "Bars and late-night spots in the liveliest part of town." };
+}
+
 export function offlinePlan(ctx: PlannerContext, c: DerivedConstraints): DraftPlan {
   const { trip } = ctx;
   const days = eachDay(trip.startDate, trip.endDate);
@@ -75,9 +95,14 @@ export function offlinePlan(ctx: PlannerContext, c: DerivedConstraints): DraftPl
   const add = (day: string, from: string, to: string, category: PlannedEvent["category"], m: ReturnType<Maker>, location: string) =>
     events.push({ ...m, start: at(day, from), end: at(day, to), category, location });
 
+  const nightlife = nightlifeRequest(ctx.preferences);
+  const departureDay = c.departure?.at.slice(0, 10);
+  let lateLastNight = false;
+
   days.forEach((day, i) => {
     const place = byDay[i];
     const arrivingHere = i > 0 && byDay[i - 1] !== place;
+    const morning = lateLastNight ? ["10:30", "12:00"] : ["09:30", "11:30"];
     if (arrivingHere) {
       add(day, "09:00", "11:30", "travel", {
         title: `Travel ${byDay[i - 1]} → ${place}`,
@@ -85,13 +110,42 @@ export function offlinePlan(ctx: PlannerContext, c: DerivedConstraints): DraftPl
         reason: "Moving in the morning means you arrive with the whole afternoon free to explore.",
       }, place);
     } else {
-      add(day, "09:30", "11:30", "sight", pick(SIGHTS, i)(place), place);
+      add(day, morning[0], morning[1], "sight", pick(SIGHTS, i)(place), place);
     }
     add(day, "12:30", "13:30", "food", pick(LUNCH, i)(place), place);
     add(day, "14:30", "16:30", "activity", pick(ACTIVITIES, i)(place), place);
     add(day, "19:00", "20:30", "food", pick(DINNER, i)(place), place);
+
+    // Nightlife on most nights: not before an early travel morning or a departure day.
+    const next = addDays(day, 1);
+    const earlyStartTomorrow = (i + 1 < days.length && byDay[i + 1] !== place) || next === departureDay;
+    lateLastNight = false;
+    if (nightlife && !earlyStartTomorrow) {
+      events.push({
+        title: `${NIGHTLIFE_PREFIX}${place}`,
+        description: nightlife.description,
+        reason: "You asked for nights out, so this starts after dinner and runs late. The next morning starts later to make up for it.",
+        start: at(day, "22:30"),
+        end: at(next, "01:30"),
+        category: "activity",
+        location: place,
+      });
+      lateLastNight = true;
+    }
   });
 
+  return { events };
+}
+
+/**
+ * Summary and highlights for an offline plan, written from the events that survived
+ * post-processing, so counts like "every night ends with a night out" are always true.
+ */
+export function describeOfflinePlan(ctx: PlannerContext, c: DerivedConstraints, finalEvents: PlannedEvent[]): PlanDescription {
+  const { trip } = ctx;
+  const days = eachDay(trip.startDate, trip.endDate);
+  const { stops } = routeStops(ctx);
+  const nightsOut = finalEvents.filter((e) => e.title.startsWith(NIGHTLIFE_PREFIX)).length;
   const name = trip.destination.name;
   const scopeLine =
     trip.destination.scope === "city"
@@ -102,18 +156,22 @@ export function offlinePlan(ctx: PlannerContext, c: DerivedConstraints): DraftPl
   if (c.departure) bookingBits.push(`the last day wraps up before your ${hhmm(c.departure.at)} departure`);
   if (c.lodging[0]) bookingBits.push(`evenings end near ${c.lodging[0].name} in ${c.lodging[0].neighborhood}`);
   const bookingLine = bookingBits.length ? ` Around your bookings, ${bookingBits.join(", ")}.` : "";
+  const nightLine = nightsOut
+    ? ` You asked for nightlife, so ${nightsOut === days.length ? "every night" : `${nightsOut} of ${days.length} nights`} end${nightsOut === 1 || nightsOut === days.length ? "s" : ""} with a night out (22:30–01:30), and the mornings after start later.`
+    : "";
 
   return {
-    summary: `A ${days.length}-day plan for ${name}. ${scopeLine} Mornings go to sights before the crowds, afternoons to something active or relaxing, and meals land at normal mealtimes.${bookingLine}`,
+    summary: `A ${days.length}-day plan for ${name}. ${scopeLine} Mornings go to sights before the crowds, afternoons to something active or relaxing, and meals land at normal mealtimes.${nightLine}${bookingLine}`,
     highlights: [
       trip.destination.scope === "city"
         ? { title: "Less commuting, more exploring", body: `Each day clusters nearby parts of ${stops[0]} so transit stays short.` }
         : { title: "A route that flows", body: `${stops.join(" → ")}, one direction, with travel mornings and free afternoons.` },
-      { title: "A little of everything", body: "Sights, food, and outdoor time each day, with breathing room between them." },
+      nightsOut
+        ? { title: "Nights out, as you asked", body: `A late night out on ${nightsOut} night${nightsOut === 1 ? "" : "s"}, after dinner, with later starts the next morning.` }
+        : { title: "A little of everything", body: "Sights, food, and outdoor time each day, with breathing room between them." },
       bookingBits.length
         ? { title: "Built around your bookings", body: `${bookingBits[0][0].toUpperCase()}${bookingBits[0].slice(1)}.` }
         : { title: "Easy to make your own", body: "Drag anything to a new time, delete what doesn't fit, or add your own plans." },
     ],
-    events,
   };
 }

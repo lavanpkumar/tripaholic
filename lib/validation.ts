@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { diffDays, isYmd, normalizeLocal } from "./dates";
+import { eventTimesError } from "./events";
 import { EVENT_CATEGORIES } from "./types";
 
 /** zod schemas for every API input (PLAN.md Section 9). */
@@ -71,8 +72,11 @@ const description = z.string().trim().max(2000).optional();
 const location = z.string().trim().max(200).optional();
 const category = z.enum(EVENT_CATEGORIES).optional();
 
+/** Same rule as the event form (lib/events.ts eventTimesError), so the API can't be bypassed. */
 function checkTimes(v: { start?: string; end?: string }, ctx: z.RefinementCtx) {
-  if (v.start && v.end && v.end <= v.start) ctx.addIssue({ code: "custom", path: ["end"], message: "End must be after start" });
+  if (!v.start || !v.end) return;
+  const msg = eventTimesError(v.start, v.end);
+  if (msg) ctx.addIssue({ code: "custom", path: ["end"], message: msg });
 }
 
 export const eventCreateSchema = z
@@ -90,7 +94,11 @@ export const eventPatchSchema = z
     pinned: z.boolean().optional(),
   })
   .strict()
-  .superRefine(checkTimes);
+  // Only the basic order check here: the PATCH route applies the full overnight rule to the merged
+  // times, and only when they change, so renaming an existing event never fails.
+  .superRefine((v, ctx) => {
+    if (v.start && v.end && v.end <= v.start) ctx.addIssue({ code: "custom", path: ["end"], message: "End must be after start" });
+  });
 
 export const agentRequestSchema = z.object({
   kind: z.enum(["flight", "lodging"]),

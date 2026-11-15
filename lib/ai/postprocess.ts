@@ -1,5 +1,5 @@
-import { addMinutes, localDate, minutesBetween, normalizeLocal } from "../dates";
-import { overlaps, tripBounds } from "../events";
+import { addDays, addMinutes, localDate, minutesBetween, normalizeLocal } from "../dates";
+import { EVENING_START, NIGHT_END, overlaps, tripBounds } from "../events";
 import { EVENT_CATEGORIES, type EventCategory } from "../types";
 
 /**
@@ -33,7 +33,10 @@ export interface PlanConstraints {
   earliest?: string;
   /** Nothing may end after this (e.g. time to leave for the airport). */
   latest?: string;
-  /** "HH:mm" bounds for regular events; travel events may go outside them. */
+  /**
+   * "HH:mm" bounds for daytime events; travel events may go outside them. Evening events
+   * (starting at or after 18:00) may instead run until 03:00 the next day, for nightlife.
+   */
   dayStart?: string;
   dayEnd?: string;
   maxPerDay?: number;
@@ -109,8 +112,13 @@ export function postprocessPlan(raw: unknown[], c: PlanConstraints): Postprocess
     const duration = minutesBetween(ev.start, ev.end);
     const day = localDate(ev.start);
     const isTravel = ev.category === "travel";
-    // Latest moment this event may end on its own day.
-    const dayLimit = minIso(isTravel ? `${day}T23:59:00` : `${day}T${dayEnd}:00`, hi);
+    // Classified by when it was planned, so a daytime event is never pushed into the night.
+    const isEvening = !isTravel && ev.start.slice(11, 16) >= EVENING_START;
+    // Latest moment this event may end: its own day for daytime, 03:00 next day for evenings.
+    const dayLimit = minIso(
+      isTravel ? `${day}T23:59:00` : isEvening ? `${addDays(day, 1)}T${NIGHT_END}:00` : `${day}T${dayEnd}:00`,
+      hi,
+    );
     let start = ev.start;
     if (!isTravel && start < `${day}T${dayStart}:00`) start = `${day}T${dayStart}:00`;
     if (start < lo) start = lo;
@@ -118,7 +126,7 @@ export function postprocessPlan(raw: unknown[], c: PlanConstraints): Postprocess
     let placed: PlannedEvent | null = null;
     for (let i = 0; i < MAX_SHIFTS; i++) {
       const end = addMinutes(start, duration);
-      if (localDate(start) !== day || end > dayLimit || start < lo) break;
+      if (localDate(start) !== day || end > dayLimit || start < lo || start >= bounds.lastStart) break;
       if (!isTravel && minutesBetween(ev.start, start) > MAX_SHIFT_MINUTES) break;
       const blocker = [...c.fixed, ...accepted].find((w) => overlaps({ start, end }, w));
       if (!blocker) {

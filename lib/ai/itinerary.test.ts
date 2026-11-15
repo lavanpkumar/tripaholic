@@ -4,7 +4,9 @@ import { __resetFileStoreForTests } from "../store/collections";
 import { createEvents, createTrip, listEvents, updateEvent } from "../store/repo";
 import type { Trip } from "../types";
 import type { GeminiDeps } from "./gemini";
+import { buildConstraints } from "./context";
 import { generateItinerary } from "./itinerary";
+import { buildPrompt } from "./planner";
 
 // Force the local file store and no real Gemini key for these tests.
 vi.stubEnv("MONGODB_URI", "");
@@ -125,5 +127,71 @@ describe("generateItinerary (Gemini path)", () => {
     expect(plan.mode).toBe("offline");
     expect(summary.notice).toMatch(/rejected the API key/);
     expect(plan.events.length).toBeGreaterThan(0);
+  });
+});
+
+describe("nightlife requests", () => {
+  async function miami(): Promise<Trip> {
+    return createTrip({
+      userId: "demo-user",
+      title: "Miami",
+      destination: { name: "Miami, United States", scope: "city", timezone: "America/New_York" },
+      startDate: "2027-04-01",
+      endDate: "2027-04-04",
+      archived: false,
+    });
+  }
+
+  it("offline: 'clubbing at night' adds late nights on most nights, without overlaps, and says so", async () => {
+    const trip = await miami();
+    const { events, summary } = await generateItinerary(trip, { preferences: "I want to go clubbing at night" });
+    const nights = events.filter((e) => e.title.startsWith("Nightlife"));
+    expect(nights.length).toBeGreaterThanOrEqual(3);
+    for (const n of nights) {
+      expect(n.start.slice(11, 16)).toBe("22:30");
+      expect(n.end.slice(11, 16)).toBe("01:30");
+      expect(n.end.slice(0, 10) > n.start.slice(0, 10)).toBe(true);
+    }
+    expect(nights.some((n) => n.end === "2027-04-05T01:30:00")).toBe(true); // the last night runs past the end date
+    for (const a of events) for (const b of events) if (a !== b) expect(overlaps(a, b)).toBe(false);
+    expect(summary.summary).toMatch(/nightlife/i);
+    expect(summary.highlights.map((h) => h.title)).toContain("Nights out, as you asked");
+  });
+
+  it("offline: no nightlife unless asked", async () => {
+    const { events } = await generateItinerary(await miami());
+    expect(events.some((e) => e.end.slice(0, 10) > e.start.slice(0, 10))).toBe(false);
+  });
+
+  it("Gemini prompt allows nightlife and puts the request first-class", async () => {
+    const trip = await miami();
+    const { system, prompt } = buildPrompt({ trip, fixedEvents: [], bookings: [], preferences: "I want to go clubbing at night" }, buildConstraints({ trip, fixedEvents: [], bookings: [] }));
+    expect(system).toMatch(/nightlife are allowed/);
+    expect(system).toMatch(/up to 5/);
+    expect(system).toMatch(/must clearly shape the plan/);
+    expect(system).toContain("2027-04-05T01:30");
+    expect(prompt).toContain("TRAVELER'S REQUEST (must shape the plan): I want to go clubbing at night");
+  });
+});
+
+describe("offline nightlife summary reflects the final calendar", () => {
+  it("counts nights out after post-processing, so a dropped night isn't claimed", async () => {
+    const trip = await createTrip({
+      userId: "demo-user",
+      title: "Miami",
+      destination: { name: "Miami, United States", scope: "city", timezone: "America/New_York" },
+      startDate: "2027-04-01",
+      endDate: "2027-04-04",
+      archived: false,
+    });
+    // The traveler's own late plan on night 2 leaves no room for the planner's night out.
+    await createEvents([{ tripId: trip.id, title: "Birthday party", start: "2027-04-02T22:00:00", end: "2027-04-03T02:30:00", source: "user" }]);
+    const { events, summary } = await generateItinerary(trip, { preferences: "clubbing at night" });
+    const nights = events.filter((e) => e.source === "ai" && e.title.startsWith("Nightlife in "));
+    expect(nights).toHaveLength(3);
+    expect(nights.some((n) => n.start.startsWith("2027-04-02"))).toBe(false);
+    expect(summary.summary).not.toMatch(/every night/);
+    expect(summary.summary).toContain("3 of 4 nights end with a night out");
+    expect(summary.highlights.find((h) => h.title === "Nights out, as you asked")?.body).toContain("on 3 nights");
   });
 });

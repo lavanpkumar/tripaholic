@@ -33,10 +33,37 @@ export default function SummaryPanel({
           Gemini picks things to do in {place}, fits them around your bookings and your own events, and explains every choice. You can move, delete, or add anything
           afterwards.
         </p>
-        <button type="button" className={`${btn.primary} mt-4 w-full`} disabled={generating} onClick={() => onGenerate()}>
-          <img src="/assets/sparkle-white.svg" alt="" />
-          {generating ? "Planning…" : "Generate with AI"}
-        </button>
+        <form
+          className="mt-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            onGenerate(ask.trim() || undefined);
+          }}
+        >
+          <label htmlFor="trip-wishes" className="mb-1.5 block text-[11px] font-semibold text-sage">
+            What do you want from this trip? <span className="font-normal text-muted">(optional)</span>
+          </label>
+          <textarea
+            id="trip-wishes"
+            rows={2}
+            maxLength={500}
+            value={ask}
+            onChange={(e) => setAsk(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                onGenerate(ask.trim() || undefined);
+              }
+            }}
+            disabled={generating}
+            placeholder="e.g. clubbing at night, lots of street food, a slow beach day"
+            className="w-full resize-none rounded-lg border border-[#d9e7dc] bg-white px-3 py-2 text-[12.5px] text-ink placeholder:text-muted focus:border-pine focus:outline-none"
+          />
+          <button type="submit" className={`${btn.primary} mt-3 w-full`} disabled={generating}>
+            <img src="/assets/sparkle-white.svg" alt="" />
+            {generating ? "Planning…" : "Generate with AI"}
+          </button>
+        </form>
       </div>
     );
   }
